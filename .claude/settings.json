@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd *)",
+      "Bash(cd * && git * && git *)",
+      "Bash(cd * && git * | * | *)",
+      "Bash(cd * && git * | *)",
+      "Bash(cd * && git *)",
+      "Bash(git * | * | *)",
+      "Bash(git * | *)",
+      "Bash(git *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)"
+    ]
+  }
+}
