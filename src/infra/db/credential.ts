@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 
 interface InsertCredentialInput {
   userId: string;
-  provider: "git" | "notion";
+  provider: string;
   credential: string;
   label: string | null;
   metadata: string | null;
@@ -28,6 +28,18 @@ export function getCredentialByUserAndProvider(db: Database.Database, userId: st
   return db.prepare(
     "SELECT * FROM user_credentials WHERE user_id = ? AND provider = ?"
   ).get(userId, provider) as any | undefined;
+}
+
+export function getCredentialsByUserAndProvider(db: Database.Database, userId: string, provider: string) {
+  return db.prepare(
+    "SELECT * FROM user_credentials WHERE user_id = ? AND provider = ?"
+  ).all(userId, provider) as any[];
+}
+
+export function getCredentialById(db: Database.Database, id: number) {
+  return db.prepare(
+    "SELECT * FROM user_credentials WHERE id = ?"
+  ).get(id) as any | undefined;
 }
 
 export function updateCredential(db: Database.Database, id: number, input: UpdateCredentialInput): void {

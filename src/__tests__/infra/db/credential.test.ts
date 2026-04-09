@@ -5,6 +5,8 @@ import {
   insertCredential,
   getCredentialsByUser,
   getCredentialByUserAndProvider,
+  getCredentialsByUserAndProvider,
+  getCredentialById,
   updateCredential,
   deleteCredential,
 } from "@/infra/db/credential";
@@ -96,6 +98,41 @@ describe("credential repository", () => {
 
     const result = getCredentialsByUser(db, "user1");
     expect(result).toHaveLength(0);
+  });
+
+  it("should get all credentials by user and provider", () => {
+    insertCredential(db, {
+      userId: "user1",
+      provider: "git",
+      credential: "token1",
+      label: "회사",
+      metadata: null,
+    });
+    insertCredential(db, {
+      userId: "user1",
+      provider: "git",
+      credential: "token2",
+      label: "개인",
+      metadata: null,
+    });
+
+    const creds = getCredentialsByUserAndProvider(db, "user1", "git");
+    expect(creds).toHaveLength(2);
+  });
+
+  it("should get credential by id", () => {
+    insertCredential(db, {
+      userId: "user1",
+      provider: "git",
+      credential: "token1",
+      label: "테스트",
+      metadata: null,
+    });
+
+    const all = getCredentialsByUser(db, "user1");
+    const cred = getCredentialById(db, all[0].id);
+    expect(cred).toBeDefined();
+    expect(cred!.credential).toBe("token1");
   });
 
   it("should allow multiple credentials for same user and provider", () => {
