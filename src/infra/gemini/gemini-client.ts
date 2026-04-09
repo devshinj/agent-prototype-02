@@ -1,0 +1,112 @@
+// src/infra/gemini/gemini-client.ts
+import { GoogleGenAI } from "@google/genai";
+import type { CommitRecord, DailyTask } from "@/core/types";
+
+let client: GoogleGenAI | null = null;
+
+function getClient(): GoogleGenAI {
+  if (!client) {
+    client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  }
+  return client;
+}
+
+export function buildAnalysisPrompt(commits: CommitRecord[], project: string, date: string): string {
+  const commitSummaries = commits
+    .map(
+      (c) =>
+        `- [${c.sha.slice(0, 7)}] ${c.message} (files: ${c.filesChanged.join(", ") || "none"}, +${c.additions}/-${c.deletions})`
+    )
+    .join("\n");
+
+  return `프로젝트 "${project}"에서 ${date}에 수행된 커밋들을 분석하여 일일 업무 태스크로 정리해주세요.
+
+커밋 목록:
+${commitSummaries}
+
+다음 JSON 형식으로 응답해주세요:
+{
+  "tasks": [
+    {
+      "title": "태스크 제목 (한 줄 요약)",
+      "description": "수행한 작업의 상세 설명 (2-3문장)",
+      "complexity": "Low | Medium | High | Critical"
+    }
+  ]
+}
+
+규칙:
+- 관련된 커밋들은 하나의 태스크로 묶어주세요
+- 복잡도는 변경 규모와 난이도를 고려하여 추정해주세요
+- 제목과 설명은 한국어로 작성해주세요
+- JSON만 응답해주세요`;
+}
+
+export function parseAnalysisResponse(
+  response: string,
+  project: string,
+  date: string,
+  commitShas: string[]
+): DailyTask[] {
+  // Markdown code fence 제거
+  let cleaned = response.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+  }
+
+  const parsed = JSON.parse(cleaned);
+  const validComplexities = ["Low", "Medium", "High", "Critical"];
+
+  return parsed.tasks.map((t: { title: string; description: string; complexity: string }) => ({
+    title: t.title,
+    description: t.description,
+    date,
+    project,
+    complexity: validComplexities.includes(t.complexity)
+      ? (t.complexity as DailyTask["complexity"])
+      : "Medium",
+    commitShas,
+  }));
+}
+
+export async function analyzeCommits(
+  commits: CommitRecord[],
+  project: string,
+  date: string
+): Promise<DailyTask[]> {
+  const genai = getClient();
+  const prompt = buildAnalysisPrompt(commits, project, date);
+
+  const result = await genai.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: prompt,
+  });
+
+  const text = result.text ?? "";
+  const shas = commits.map((c) => c.sha);
+  return parseAnalysisResponse(text, project, date, shas);
+}
+
+export async function analyzeCommitWithDiff(
+  commit: CommitRecord,
+  diff: string
+): Promise<string> {
+  const genai = getClient();
+
+  const prompt = `다음 Git 커밋의 코드 변경을 분석하여, 이 커밋이 무엇을 했는지 한 줄로 요약해주세요.
+
+커밋 메시지: ${commit.message}
+변경된 파일: ${commit.filesChanged.join(", ")}
+
+Diff (일부):
+${diff.slice(0, 3000)}
+
+한국어로 한 줄 요약만 응답해주세요.`;
+
+  const result = await genai.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: prompt,
+  });
+
+  return result.text ?? commit.message;
+}
