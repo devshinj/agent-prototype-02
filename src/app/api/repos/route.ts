@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Database from "better-sqlite3";
 import { join } from "path";
 import { mkdir, rm } from "fs/promises";
-import { createTables } from "@/infra/db/schema";
+import { createTables, migrateSchema } from "@/infra/db/schema";
 import {
   insertRepositoryForUser,
   getRepositoriesByUser,
@@ -19,6 +19,7 @@ import { auth } from "@/lib/auth";
 function getDb() {
   const db = new Database(join(process.cwd(), "data", "tracker.db"));
   createTables(db);
+  migrateSchema(db);
   return db;
 }
 

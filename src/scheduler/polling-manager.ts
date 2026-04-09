@@ -2,7 +2,7 @@
 import cron, { type ScheduledTask } from "node-cron";
 import Database from "better-sqlite3";
 import { join } from "path";
-import { createTables } from "@/infra/db/schema";
+import { createTables, migrateSchema } from "@/infra/db/schema";
 import {
   getActiveUsersWithRepos,
   getRepositoriesByUser,
@@ -33,6 +33,7 @@ function getDb(): Database.Database {
   if (!db) {
     db = new Database(join(process.cwd(), "data", "tracker.db"));
     createTables(db);
+    migrateSchema(db);
   }
   return db;
 }

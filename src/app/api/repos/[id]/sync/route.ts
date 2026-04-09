@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Database from "better-sqlite3";
 import { join } from "path";
-import { createTables } from "@/infra/db/schema";
+import { createTables, migrateSchema } from "@/infra/db/schema";
 import { getRepositoryByIdAndUser, updateLastSyncedSha, insertSyncLogForUser } from "@/infra/db/repository";
 import { getCredentialByUserAndProvider } from "@/infra/db/credential";
 import { decrypt } from "@/infra/crypto/token-encryption";
@@ -17,6 +17,7 @@ import type { CommitRecord } from "@/core/types";
 function getDb() {
   const db = new Database(join(process.cwd(), "data", "tracker.db"));
   createTables(db);
+  migrateSchema(db);
   return db;
 }
 

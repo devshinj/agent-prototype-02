@@ -51,3 +51,25 @@ export function createTables(db: Database.Database): void {
     );
   `);
 }
+
+export function migrateSchema(db: Database.Database): void {
+  const repoColumns = db.prepare("PRAGMA table_info(repositories)").all() as any[];
+  const repoColumnNames = repoColumns.map((c: any) => c.name);
+
+  if (!repoColumnNames.includes("user_id")) {
+    db.exec("ALTER TABLE repositories ADD COLUMN user_id TEXT NOT NULL DEFAULT ''");
+  }
+  if (!repoColumnNames.includes("clone_url")) {
+    db.exec("ALTER TABLE repositories ADD COLUMN clone_url TEXT NOT NULL DEFAULT ''");
+  }
+  if (!repoColumnNames.includes("clone_path")) {
+    db.exec("ALTER TABLE repositories ADD COLUMN clone_path TEXT");
+  }
+
+  const syncColumns = db.prepare("PRAGMA table_info(sync_logs)").all() as any[];
+  const syncColumnNames = syncColumns.map((c: any) => c.name);
+
+  if (!syncColumnNames.includes("user_id")) {
+    db.exec("ALTER TABLE sync_logs ADD COLUMN user_id TEXT NOT NULL DEFAULT ''");
+  }
+}

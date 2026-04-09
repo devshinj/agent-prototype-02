@@ -39,6 +39,9 @@ next-env.d.ts
 data/*.db
 data/*.db-journal
 
+# Git bare clones (사용자별 저장소)
+data/repos/
+
 # Environment
 .env
 .env.local

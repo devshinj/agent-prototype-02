@@ -3,12 +3,13 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import Database from "better-sqlite3";
 import { join } from "path";
-import { createTables } from "@/infra/db/schema";
+import { createTables, migrateSchema } from "@/infra/db/schema";
 import { getUserByEmail } from "@/infra/db/repository";
 
 function getDb() {
   const db = new Database(join(process.cwd(), "data", "tracker.db"));
   createTables(db);
+  migrateSchema(db);
   return db;
 }
 

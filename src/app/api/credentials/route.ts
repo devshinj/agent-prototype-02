@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Database from "better-sqlite3";
 import { join } from "path";
-import { createTables } from "@/infra/db/schema";
+import { createTables, migrateSchema } from "@/infra/db/schema";
 import {
   insertCredential,
   getCredentialsByUser,
@@ -15,6 +15,7 @@ import { auth } from "@/lib/auth";
 function getDb() {
   const db = new Database(join(process.cwd(), "data", "tracker.db"));
   createTables(db);
+  migrateSchema(db);
   return db;
 }
 
