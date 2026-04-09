@@ -2,13 +2,14 @@
 import { Client } from "@notionhq/client";
 import type { CommitRecord, DailyTask } from "@/core/types";
 
-let notionClient: Client | null = null;
+export interface NotionUserConfig {
+  apiKey: string;
+  commitDbId: string;
+  taskDbId: string;
+}
 
-function getClient(): Client {
-  if (!notionClient) {
-    notionClient = new Client({ auth: process.env.NOTION_API_KEY });
-  }
-  return notionClient;
+function createClient(apiKey: string): Client {
+  return new Client({ auth: apiKey });
 }
 
 export function buildCommitLogProperties(commit: CommitRecord) {
@@ -35,43 +36,44 @@ export function buildDailyTaskProperties(task: DailyTask) {
   };
 }
 
-export async function createCommitLogPage(commit: CommitRecord): Promise<string> {
-  const client = getClient();
+export async function createCommitLogPage(config: NotionUserConfig, commit: CommitRecord): Promise<string> {
+  const client = createClient(config.apiKey);
   const response = await client.pages.create({
-    parent: { database_id: process.env.NOTION_COMMIT_DB_ID! },
+    parent: { database_id: config.commitDbId },
     properties: buildCommitLogProperties(commit) as any,
   });
   return response.id;
 }
 
-export async function createDailyTaskPage(task: DailyTask): Promise<string> {
-  const client = getClient();
+export async function createDailyTaskPage(config: NotionUserConfig, task: DailyTask): Promise<string> {
+  const client = createClient(config.apiKey);
   const response = await client.pages.create({
-    parent: { database_id: process.env.NOTION_TASK_DB_ID! },
+    parent: { database_id: config.taskDbId },
     properties: buildDailyTaskProperties(task) as any,
   });
   return response.id;
 }
 
-async function queryDatabase(databaseId: string, filter?: any, sorts?: any[]): Promise<any> {
-  const client = getClient();
+async function queryDatabase(client: Client, databaseId: string, filter?: any): Promise<any> {
   return client.request({
     path: `databases/${databaseId}/query`,
     method: "post",
-    body: { filter, sorts },
+    body: { filter },
   });
 }
 
-export async function isCommitAlreadySynced(sha: string): Promise<boolean> {
-  const response = await queryDatabase(process.env.NOTION_COMMIT_DB_ID!, {
+export async function isCommitAlreadySynced(config: NotionUserConfig, sha: string): Promise<boolean> {
+  const client = createClient(config.apiKey);
+  const response = await queryDatabase(client, config.commitDbId, {
     property: "Commit SHA",
     rich_text: { equals: sha },
   });
   return response.results.length > 0;
 }
 
-export async function isDailyTaskExists(project: string, date: string): Promise<string | null> {
-  const response = await queryDatabase(process.env.NOTION_TASK_DB_ID!, {
+export async function isDailyTaskExists(config: NotionUserConfig, project: string, date: string): Promise<string | null> {
+  const client = createClient(config.apiKey);
+  const response = await queryDatabase(client, config.taskDbId, {
     and: [
       { property: "프로젝트", select: { equals: project } },
       { property: "작업일", date: { equals: date } },
@@ -80,8 +82,8 @@ export async function isDailyTaskExists(project: string, date: string): Promise<
   return response.results.length > 0 ? response.results[0].id : null;
 }
 
-export async function updateDailyTaskPage(pageId: string, task: DailyTask): Promise<void> {
-  const client = getClient();
+export async function updateDailyTaskPage(config: NotionUserConfig, pageId: string, task: DailyTask): Promise<void> {
+  const client = createClient(config.apiKey);
   await client.pages.update({
     page_id: pageId,
     properties: buildDailyTaskProperties(task) as any,
