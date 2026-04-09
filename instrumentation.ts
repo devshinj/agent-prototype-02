@@ -1,0 +1,8 @@
+// instrumentation.ts (프로젝트 루트)
+export async function register() {
+  // 서버 사이드에서만 스케줄러 실행
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { startScheduler } = await import("@/scheduler/polling-manager");
+    startScheduler(15);
+  }
+}
