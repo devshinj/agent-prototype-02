@@ -38,6 +38,8 @@ next-env.d.ts
 # SQLite
 data/*.db
 data/*.db-journal
+data/*.db-shm
+data/*.db-wal
 
 # Git bare clones (사용자별 저장소)
 data/repos/
@@ -46,3 +48,8 @@ data/repos/
 .env
 .env.local
 .env*.local
+
+# Deploy artifacts
+deploy/*.tar.gz
+deploy/*.tar
+deploy/.env

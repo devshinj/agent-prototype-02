@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
 import { FolderGit2, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { projectColor, oklch } from "@/lib/color-hash";
 
 interface Repo {
   id: number;
@@ -56,11 +57,19 @@ export function RepoFilter({ repos, selectedIds, onSelectionChange }: RepoFilter
           "전체 저장소"
         ) : (
           <span className="flex items-center gap-1">
-            {visibleChips.map((r) => (
-              <Badge key={r.id} variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
-                {r.repo}
-              </Badge>
-            ))}
+            {visibleChips.map((r) => {
+              const color = projectColor(`${r.owner}/${r.repo}`);
+              return (
+                <Badge
+                  key={r.id}
+                  variant="secondary"
+                  className="text-[10px] px-1.5 py-0 font-normal"
+                  style={{ backgroundColor: oklch(color.bgLight), color: oklch(color.solid) }}
+                >
+                  {r.repo}
+                </Badge>
+              );
+            })}
             {moreCount > 0 && (
               <span className="text-muted-foreground">+{moreCount}</span>
             )}
@@ -78,12 +87,19 @@ export function RepoFilter({ repos, selectedIds, onSelectionChange }: RepoFilter
               <span className="font-medium text-xs">전체 선택</span>
             </CommandItem>
             <div className="h-px bg-border mx-1 my-1" />
-            {repos.map((repo) => (
-              <CommandItem key={repo.id} onSelect={() => toggle(repo.id)} className="gap-2">
-                <Checkbox checked={selectedIds.has(repo.id)} />
-                <span className="text-xs">{repo.owner}/{repo.repo}</span>
-              </CommandItem>
-            ))}
+            {repos.map((repo) => {
+              const color = projectColor(`${repo.owner}/${repo.repo}`);
+              return (
+                <CommandItem key={repo.id} onSelect={() => toggle(repo.id)} className="gap-2">
+                  <Checkbox checked={selectedIds.has(repo.id)} />
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: oklch(color.solid) }}
+                  />
+                  <span className="text-xs">{repo.owner}/{repo.repo}</span>
+                </CommandItem>
+              );
+            })}
           </CommandList>
         </Command>
       </PopoverContent>

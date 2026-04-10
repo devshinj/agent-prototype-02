@@ -1,0 +1,20 @@
+services:
+  app:
+    image: repo-reporter:latest
+    network_mode: "host"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file: .env
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  app-data:

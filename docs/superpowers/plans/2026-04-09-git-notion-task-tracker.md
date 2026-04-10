@@ -1,4 +1,4 @@
-# Repo Task Tracker Implementation Plan
+# Repo Repoter Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -197,7 +197,7 @@ data/*.db-journal
 - [ ] **Step 5: AGENTS.md 생성**
 
 ```markdown
-# Repo Task Tracker
+# Repo Repoter
 
 ## Architecture
 
@@ -437,7 +437,7 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 h-full w-60 border-r bg-card flex flex-col">
       <div className="p-5">
-        <h1 className="text-lg font-bold">Git-Notion Tracker</h1>
+        <h1 className="text-lg font-bold">Repo Repoter</h1>
       </div>
       <Separator />
       <nav className="flex-1 p-3 space-y-1">
@@ -1829,7 +1829,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Repo Task Tracker</CardTitle>
+          <CardTitle>Repo Repoter</CardTitle>
           <CardDescription>HRMS 계정으로 로그인하세요</CardDescription>
         </CardHeader>
         <form
@@ -1858,7 +1858,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Repo Task Tracker",
+  title: "Repo Repoter",
   description: "Git 커밋을 분석하여 Notion에 일일 업무 기록을 자동 생성합니다",
 };
 
@@ -2126,7 +2126,7 @@ export default function DashboardPage() {
     <div>
       <Header
         title="대시보드"
-        description="Git 커밋 모니터링 및 Notion 동기화 현황"
+        description="Git 커밋 모니터링 현황"
         actions={
           <Button onClick={handleSync} loading={syncing}>
             지금 동기화

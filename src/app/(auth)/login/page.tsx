@@ -5,8 +5,9 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Logo } from "@/components/layout/logo";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -41,8 +42,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Repo Task Tracker</CardTitle>
-          <CardDescription>계정에 로그인하세요</CardDescription>
+          <div className="flex justify-center">
+            <Logo asLink={false} />
+          </div>
+        
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCredentialsLogin} className="space-y-4">

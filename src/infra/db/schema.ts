@@ -1,7 +1,6 @@
 import Database from "better-sqlite3";
 
 export function createTables(db: Database.Database): void {
-  db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE IF NOT EXISTS repositories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,7 +23,9 @@ export function createTables(db: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
+      password_hash TEXT,
+      provider TEXT NOT NULL DEFAULT 'credentials',
+      provider_account_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -76,10 +77,53 @@ export function createTables(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_commit_cache_repo_date
       ON commit_cache(repository_id, committed_date);
+
+    CREATE INDEX IF NOT EXISTS idx_repositories_user_active
+      ON repositories(user_id, is_active);
+
+    CREATE INDEX IF NOT EXISTS idx_sync_logs_repo_completed
+      ON sync_logs(repository_id, completed_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_sync_logs_user_status
+      ON sync_logs(user_id, status, completed_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_reports_user_created
+      ON reports(user_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_user_credentials_user_provider
+      ON user_credentials(user_id, provider);
   `);
 }
 
 export function migrateSchema(db: Database.Database): void {
+  // users 테이블 마이그레이션: provider, provider_account_id 추가 + password_hash nullable
+  const userColumns = db.prepare("PRAGMA table_info(users)").all() as any[];
+  const userColumnNames = userColumns.map((c: any) => c.name);
+  const passwordCol = userColumns.find((c: any) => c.name === "password_hash");
+
+  if (!userColumnNames.includes("provider") || (passwordCol && passwordCol.notnull === 1)) {
+    // password_hash NOT NULL → nullable 변경은 ALTER로 불가하므로 테이블 재생성
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT,
+        provider TEXT NOT NULL DEFAULT 'credentials',
+        provider_account_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT OR IGNORE INTO users_new (id, name, email, password_hash, created_at)
+        SELECT id, name, email, password_hash, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `);
+  } else {
+    if (!userColumnNames.includes("provider_account_id")) {
+      db.exec("ALTER TABLE users ADD COLUMN provider_account_id TEXT");
+    }
+  }
+
   const repoColumns = db.prepare("PRAGMA table_info(repositories)").all() as any[];
   const repoColumnNames = repoColumns.map((c: any) => c.name);
 

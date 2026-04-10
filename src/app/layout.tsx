@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { SessionProvider } from "next-auth/react";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Repo Task Tracker",
-  description: "Git 커밋을 분석하여 Notion에 일일 업무 기록을 자동 생성합니다",
+  title: "Repo Repoter",
+  description: "Git 커밋을 분석하여 일일 업무 기록을 자동 생성합니다",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,7 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko">
       <body>
         <SessionProvider>
-          {children}
+          <TooltipProvider>
+            {children}
+          </TooltipProvider>
           <Toaster />
         </SessionProvider>
       </body>

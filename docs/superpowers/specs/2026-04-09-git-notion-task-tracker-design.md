@@ -1,4 +1,4 @@
-# Repo Task Tracker 설계 스펙
+# Repo Repoter 설계 스펙
 
 ## Context
 

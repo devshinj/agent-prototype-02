@@ -1,19 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import Database from "better-sqlite3";
-import { join } from "path";
-import { createTables, migrateSchema } from "@/infra/db/schema";
 import { getRepositoryByIdAndUser } from "@/infra/db/repository";
 import { insertReport, updateReportStatus } from "@/infra/db/report";
 import { getDetailedCommitsForDate, getBranches } from "@/infra/git/git-client";
 import { auth } from "@/lib/auth";
 import { GoogleGenAI } from "@google/genai";
-
-function getDb() {
-  const db = new Database(join(process.cwd(), "data", "tracker.db"));
-  createTables(db);
-  migrateSchema(db);
-  return db;
-}
+import { getDb } from "@/infra/db/connection";
 
 interface CommitEntry {
   branch: string;
@@ -30,7 +21,8 @@ interface CommitEntry {
 async function collectCommitsForDate(
   clonePath: string,
   cloneUrl: string,
-  date: string
+  date: string,
+  authors?: string[]
 ): Promise<CommitEntry[]> {
   const branches = await getBranches(clonePath);
   const seenShas = new Set<string>();
@@ -38,7 +30,7 @@ async function collectCommitsForDate(
 
   for (const branch of branches) {
     try {
-      const branchCommits = await getDetailedCommitsForDate(clonePath, branch, cloneUrl, date);
+      const branchCommits = await getDetailedCommitsForDate(clonePath, branch, cloneUrl, date, authors);
       for (const c of branchCommits) {
         if (seenShas.has(c.sha)) continue;
         seenShas.add(c.sha);
@@ -90,7 +82,7 @@ function buildPrompt(
     : "";
 
   return `당신은 소프트웨어 개발팀의 업무 보고서 작성 도우미입니다.
-아래 Git 커밋 데이터를 분석하여 ${isRange ? "해당 기간의" : "해당일의"} **업무 보고서**를 작성해주세요.
+아래 Git 커밋 데이터를 분석하여 ${isRange ? "해당 기간의" : "해당일의"} **업무 보고서**를 작성해주세요. (구어체 사용 금지)
 
 ## 기본 정보
 - 프로젝트: ${repoOwner}/${repoName}
@@ -102,16 +94,41 @@ function buildPrompt(
 ## 커밋 상세
 ${commitDetails}
 
-## 보고서 작성 규칙
-1. **업무 요약**: ${isRange ? "기간" : "오늘"} 수행한 주요 업무를 3줄 이내로 요약
-2. **상세 업무 내용**: 관련된 커밋들을 묶어서 업무 단위로 정리. 각 업무마다:
-   - 업무 제목
-   - 수행한 내용 설명 (커밋 메시지와 변경 파일을 근거로)
-   - 관련 파일 목록
-3. **특이 사항**: 버그 수정, 리팩토링, 새 기능 등 주목할 점이 있으면 기재
+## 보고서 출력 형식 (아래 마크다운 구조를 정확히 따라주세요)
+
+\`\`\`
+## 📋 업무 요약
+
+> ${isRange ? "기간" : "오늘"} 수행한 핵심 업무를 **4줄 이내**로 간결하게 요약합니다.
+
+---
+
+## 📌 상세 업무 내용
+
+### 1. 업무 제목
+
+수행한 내용을 2~3문장으로 설명합니다. 커밋 메시지와 변경 파일을 근거로 작성합니다.
+
+- 관련 파일: N개
+- 변경량: +120 / -30
+
+### 2. 다음 업무 제목 ...
+
+---
+
+## 🔍 특이 사항
+
+- 주목할 변경 사항 (버그 수정, 리팩토링, 신규 기능 등)이 있으면 불릿으로 기재합니다.
+- 없으면 이 섹션은 생략합니다.
+\`\`\`
 ${rule4}
-보고서는 한국어로 작성하고, 마크다운 형식으로 출력해주세요.
-보고서 제목이나 날짜는 포함하지 마세요 — 본문만 작성해주세요.`;
+
+## 작성 규칙
+- 한국어로 작성
+- 관련 커밋들을 묶어서 **업무 단위**로 정리 (커밋 1:1 나열 금지)
+- 관련 파일은 개수만 표기 (파일 경로 나열 금지)
+- 보고서 제목(h1)이나 날짜 헤더는 포함하지 마세요 — 본문만 작성
+- 위 출력 형식의 섹션 구조와 이모지 헤더를 그대로 사용하세요`;
 }
 
 export async function POST(request: NextRequest) {
@@ -163,8 +180,8 @@ export async function POST(request: NextRequest) {
       });
 
       // 백그라운드 생성 (await 하지 않음)
+      const authors = repo.git_author ? repo.git_author.split(",").map((a: string) => a.trim()).filter(Boolean) : undefined;
       (async () => {
-        const bgDb = getDb();
         try {
           // 커밋 수집
           let allCommits: CommitEntry[] = [];
@@ -173,16 +190,16 @@ export async function POST(request: NextRequest) {
             const end = new Date(dateRange!.until);
             while (current <= end) {
               const d = current.toISOString().slice(0, 10);
-              const dayCommits = await collectCommitsForDate(repo.clone_path!, repo.clone_url, d);
+              const dayCommits = await collectCommitsForDate(repo.clone_path!, repo.clone_url, d, authors);
               allCommits = allCommits.concat(dayCommits);
               current.setDate(current.getDate() + 1);
             }
           } else {
-            allCommits = await collectCommitsForDate(repo.clone_path!, repo.clone_url, date!);
+            allCommits = await collectCommitsForDate(repo.clone_path!, repo.clone_url, date!, authors);
           }
 
           if (allCommits.length === 0) {
-            updateReportStatus(bgDb, pendingId, "error", { title: `[${repo.owner}/${repo.repo}] ${dateLabel} 업무 보고서`, content: "해당 기간에 커밋이 없습니다." });
+            updateReportStatus(db, pendingId, "error", { title: `[${repo.owner}/${repo.repo}] ${dateLabel} 업무 보고서`, content: "해당 기간에 커밋이 없습니다." });
             return;
           }
 
@@ -194,14 +211,12 @@ export async function POST(request: NextRequest) {
           });
           const content = result.text ?? "";
           const title = `[${repo.owner}/${repo.repo}] ${dateLabel} 업무 보고서`;
-          updateReportStatus(bgDb, pendingId, "completed", { title, content });
+          updateReportStatus(db, pendingId, "completed", { title, content });
         } catch (err: any) {
-          updateReportStatus(bgDb, pendingId, "error", {
+          updateReportStatus(db, pendingId, "error", {
             title: `[${repo.owner}/${repo.repo}] ${dateLabel} 업무 보고서`,
             content: err?.message ?? "보고서 생성 중 오류 발생",
           });
-        } finally {
-          bgDb.close();
         }
       })();
 
@@ -209,18 +224,19 @@ export async function POST(request: NextRequest) {
     }
 
     // 동기 모드: 기존 동작 + 기간 지원
+    const syncAuthors = repo.git_author ? repo.git_author.split(",").map((a: string) => a.trim()).filter(Boolean) : undefined;
     let allCommits: CommitEntry[] = [];
     if (isRange) {
       const current = new Date(dateRange!.since);
       const end = new Date(dateRange!.until);
       while (current <= end) {
         const d = current.toISOString().slice(0, 10);
-        const dayCommits = await collectCommitsForDate(repo.clone_path, repo.clone_url, d);
+        const dayCommits = await collectCommitsForDate(repo.clone_path, repo.clone_url, d, syncAuthors);
         allCommits = allCommits.concat(dayCommits);
         current.setDate(current.getDate() + 1);
       }
     } else {
-      allCommits = await collectCommitsForDate(repo.clone_path, repo.clone_url, date!);
+      allCommits = await collectCommitsForDate(repo.clone_path, repo.clone_url, date!, syncAuthors);
     }
 
     if (allCommits.length === 0) {
@@ -253,7 +269,5 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error("[Report Generate]", error);
     return NextResponse.json({ error: error.message || "보고서 생성 실패" }, { status: 500 });
-  } finally {
-    db.close();
   }
 }

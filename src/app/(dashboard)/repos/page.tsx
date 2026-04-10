@@ -16,8 +16,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/data-display/empty-state";
 import { toast } from "sonner";
-import { GitBranch, GitCommit, History, Trash2, RefreshCw, ChevronRight, User, Plus, X } from "lucide-react";
+import { GitBranch, GitCommit, Trash2, RefreshCw, ChevronRight, User, Plus, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { repoColor, stringColor, oklch } from "@/lib/color-hash";
+import { DotIdenticon } from "@/components/data-display/dot-identicon";
 import { LanguageBadge } from "@/components/data-display/language-badge";
 
 function parseAuthors(gitAuthor: string | null | undefined): string[] {
@@ -109,7 +111,7 @@ function AuthorTags({ repo, onSave }: { repo: any; onSave: (id: number, authors:
       {isAdding ? (
         <Input
           ref={inputRef}
-          className="h-5 text-[11px] w-28 px-1.5 py-0 rounded-md border-dashed"
+          className="h-5 text-[11px] w-36 px-1.5 py-0 rounded-md border-dashed"
           placeholder="이름 입력 후 Enter"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
@@ -121,13 +123,18 @@ function AuthorTags({ repo, onSave }: { repo: any; onSave: (id: number, authors:
           }}
         />
       ) : (
-        <button
-          className="inline-flex items-center gap-0.5 rounded-md border border-dashed border-muted-foreground/30 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-foreground/50 hover:text-foreground transition-colors"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsAdding(true); }}
-        >
-          <Plus className="h-2.5 w-2.5" />
-          {tags.length === 0 ? "Author 추가" : "추가"}
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            className="inline-flex items-center gap-0.5 rounded-md border border-dashed border-muted-foreground/30 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-foreground/50 hover:text-foreground transition-colors"
+            onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); setIsAdding(true); }}
+          >
+            <Plus className="h-2.5 w-2.5" />
+            {tags.length === 0 ? "Author 추가" : "추가"}
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>커밋을 트래킹할 author를 등록합니다</p>
+          </TooltipContent>
+        </Tooltip>
       )}
     </div>
   );
@@ -248,18 +255,7 @@ export default function ReposPage() {
                 />
                 <CardContent className="flex items-center gap-4 py-4">
                   {/* 아이콘 */}
-                  <div
-                    className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center dark:hidden"
-                    style={{ backgroundColor: oklch(color.bgLight) }}
-                  >
-                    <History className="h-5 w-5" style={{ color: oklch(color.solid) }} />
-                  </div>
-                  <div
-                    className="flex-shrink-0 w-10 h-10 rounded-lg items-center justify-center hidden dark:flex"
-                    style={{ backgroundColor: oklch(color.bgDark) }}
-                  >
-                    <History className="h-5 w-5" style={{ color: oklch(color.solid) }} />
-                  </div>
+                  <DotIdenticon value={`${repo.owner}/${repo.repo}`} size={40} colorSet={color} className="flex-shrink-0" />
 
                   {/* 저장소 정보 */}
                   <div className="flex-1 min-w-0">

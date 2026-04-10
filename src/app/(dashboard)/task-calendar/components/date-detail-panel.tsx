@@ -8,8 +8,15 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { CalendarDays, GitCommit, GitBranch, FolderGit2, FileText, ChevronRight } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { CalendarDays, GitCommit, GitBranch, FolderGit2, FileText, ChevronRight, Sparkles, Eye, Code } from "lucide-react";
 import { toast } from "sonner";
+import { projectColor, oklch } from "@/lib/color-hash";
+import ReactMarkdown from "react-markdown";
+import { LogoConceptA } from "@/components/ui/sympol";
 
 interface RepoDateDetail {
   repoId: number;
@@ -32,11 +39,14 @@ export function DateDetailPanel({ selectedDate, commitCount, repoIds }: DateDeta
   const [loading, setLoading] = useState(false);
   const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
 
+  const [confirmRepo, setConfirmRepo] = useState<RepoDateDetail | null>(null);
+
   const [reportRepo, setReportRepo] = useState<RepoDateDetail | null>(null);
   const [reportTitle, setReportTitle] = useState("");
   const [reportContent, setReportContent] = useState("");
   const [reportGenerating, setReportGenerating] = useState(false);
   const [reportSaving, setReportSaving] = useState(false);
+  const [reportViewMode, setReportViewMode] = useState<"edit" | "preview">("edit");
 
   useEffect(() => {
     setExpandedBranches(new Set());
@@ -52,8 +62,6 @@ export function DateDetailPanel({ selectedDate, commitCount, repoIds }: DateDeta
   }, [selectedDate, repoIds]);
 
   async function openReport(repo: RepoDateDetail) {
-    if (!confirm(`${selectedDate} — ${repo.owner}/${repo.repoName}\n\n해당일 태스크 보고서를 작성하시겠습니까?`)) return;
-
     setReportRepo(repo);
     setReportTitle(`[${repo.owner}/${repo.repoName}] ${selectedDate} 업무 보고서`);
     setReportContent("");
@@ -85,6 +93,7 @@ export function DateDetailPanel({ selectedDate, commitCount, repoIds }: DateDeta
     setReportRepo(null);
     setReportTitle("");
     setReportContent("");
+    setReportViewMode("edit");
   }
 
   async function handleCopyReport() {
@@ -132,18 +141,29 @@ export function DateDetailPanel({ selectedDate, commitCount, repoIds }: DateDeta
         <p className="text-sm text-muted-foreground py-4">이 날짜에 커밋 활동이 없습니다.</p>
       ) : (
         <div className="space-y-3">
-          {dateDetail.map((repo) => (
+          {dateDetail.map((repo) => {
+            const color = projectColor(`${repo.owner}/${repo.repoName}`);
+            return (
             <Card key={repo.repoId}>
               <CardContent className="py-3">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <FolderGit2 className="h-4 w-4 text-primary" />
+                    <div
+                      className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: oklch(color.bgLight) }}
+                    >
+                      <FolderGit2 className="h-3 w-3" style={{ color: oklch(color.solid) }} />
+                    </div>
                     <span className="font-medium text-sm">{repo.owner}/{repo.repoName}</span>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] px-1.5 py-0"
+                      style={{ backgroundColor: oklch(color.bgLight), color: oklch(color.solid) }}
+                    >
                       {repo.branches.reduce((sum, b) => sum + b.commits.length, 0)} 커밋
                     </Badge>
                   </div>
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => openReport(repo)}>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => setConfirmRepo(repo)}>
                     <FileText className="h-3.5 w-3.5" />
                     보고서 작성
                   </Button>
@@ -197,12 +217,13 @@ export function DateDetailPanel({ selectedDate, commitCount, repoIds }: DateDeta
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
       <Dialog open={reportRepo !== null} onOpenChange={(open) => { if (!open && !reportGenerating) closeReport(); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-4xl w-[90vw] max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />업무 보고서
@@ -218,10 +239,24 @@ export function DateDetailPanel({ selectedDate, commitCount, repoIds }: DateDeta
               )}
             </div>
             {reportGenerating ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-muted-foreground">커밋 데이터를 분석하여 보고서를 작성하고 있습니다...</p>
-                <p className="text-xs text-muted-foreground">변경 파일과 커밋 내용을 기반으로 AI가 업무 보고서를 생성합니다</p>
+              <div className="flex flex-col items-center justify-center py-14 gap-6">
+                <div className="relative">
+                  <LogoConceptA className="w-16 h-16 animate-pulse" />
+                  <div className="absolute -inset-3 rounded-full border border-primary/15 animate-ping" style={{ animationDuration: "2s" }} />
+                </div>
+                <div className="flex items-center gap-2 font-mono text-sm text-muted-foreground">
+                  <span className="text-muted-foreground/50">{">"}</span>
+                  <span>보고서 생성 중</span>
+                  <span className="inline-flex gap-0.5">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        className="inline-block w-1 h-1 rounded-full bg-muted-foreground/60 animate-bounce"
+                        style={{ animationDelay: `${i * 0.2}s` }}
+                      />
+                    ))}
+                  </span>
+                </div>
               </div>
             ) : (
               <>
@@ -233,17 +268,40 @@ export function DateDetailPanel({ selectedDate, commitCount, repoIds }: DateDeta
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-sm font-medium">내용</label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-muted-foreground">에디터에서 자유롭게 수정이 가능합니다.</span>
+                      <div className="flex items-center rounded-md border border-input p-0.5 gap-0.5">
+                        <button
+                          className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded transition-colors ${reportViewMode === "edit" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                          onClick={() => setReportViewMode("edit")}
+                        >
+                          <Code className="h-3 w-3" />편집
+                        </button>
+                        <button
+                          className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded transition-colors ${reportViewMode === "preview" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                          onClick={() => setReportViewMode("preview")}
+                        >
+                          <Eye className="h-3 w-3" />미리보기
+                        </button>
+                      </div>
                       <button
                         className="text-[10px] px-2 py-0.5 rounded-full border border-primary/40 bg-primary/5 text-primary hover:bg-primary/15 transition-colors"
                         onClick={handleCopyReport} disabled={!reportContent}
                       >복사</button>
                     </div>
                   </div>
-                  <textarea
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[350px] resize-y focus:outline-none focus:ring-2 focus:ring-ring font-mono leading-relaxed"
-                    value={reportContent} onChange={(e) => setReportContent(e.target.value)}
-                  />
+                  {reportViewMode === "edit" ? (
+                    <textarea
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[350px] resize-y focus:outline-none focus:ring-2 focus:ring-ring font-mono leading-relaxed"
+                      value={reportContent} onChange={(e) => setReportContent(e.target.value)}
+                    />
+                  ) : (
+                    <div className="w-full rounded-md border border-input bg-background px-4 py-3 text-sm min-h-[350px] overflow-y-auto prose prose-sm dark:prose-invert max-w-none">
+                      {reportContent ? (
+                        <ReactMarkdown>{reportContent}</ReactMarkdown>
+                      ) : (
+                        <span className="text-muted-foreground">보고서 내용이 없습니다.</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -256,6 +314,34 @@ export function DateDetailPanel({ selectedDate, commitCount, repoIds }: DateDeta
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmRepo !== null} onOpenChange={(open) => { if (!open) setConfirmRepo(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              보고서 작성
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                <span className="font-medium text-foreground">{confirmRepo?.owner}/{confirmRepo?.repoName}</span>
+                {" "}저장소의{" "}
+                <span className="font-medium text-foreground">{selectedDate}</span>
+                {" "}커밋 데이터를 기반으로 AI 업무 보고서를 생성합니다.
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                커밋 내용과 변경 파일을 분석하여 업무 보고서를 자동 작성합니다. 생성 후 직접 수정할 수 있습니다.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmRepo) { openReport(confirmRepo); setConfirmRepo(null); } }}>
+              보고서 생성
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

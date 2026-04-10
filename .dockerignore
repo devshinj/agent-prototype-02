@@ -1,0 +1,9 @@
+node_modules
+.next
+data
+deploy/*.tar.gz
+deploy/*.tar
+.git
+.env
+.env.local
+.env*.local

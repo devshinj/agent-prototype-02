@@ -1,4 +1,4 @@
-# Repo Task Tracker
+# Repo Repoter
 
 ## Architecture
 
@@ -6,7 +6,7 @@ Next.js 16 App Router 모놀리스. 4개 레이어:
 
 1. `src/app/` — UI + API Routes. 라우팅과 요청 처리만 담당
 2. `src/core/` — 순수 비즈니스 로직. 외부 import 금지 (infra/ 참조 불가)
-3. `src/infra/` — 외부 서비스 클라이언트 (GitHub, Gemini, Notion, SQLite)
+3. `src/infra/` — 외부 서비스 클라이언트 (GitHub, Gemini, SQLite)
 4. `src/scheduler/` — 폴링 스케줄러 (core + infra 조합)
 
 ## Layer Rules
@@ -37,5 +37,4 @@ Next.js 16 App Router 모놀리스. 4개 레이어:
 
 - GitHub REST API: 커밋 수집, diff 조회
 - Gemini (@google/genai): 커밋 분석, 태스크 요약
-- Notion API: 커밋 로그 DB + 일일 태스크 DB 페이지 CRUD
 - HRMS OAuth2: 팀 인증 (OIDC Discovery)

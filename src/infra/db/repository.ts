@@ -6,14 +6,48 @@ interface InsertUserInput {
   passwordHash: string;
 }
 
+interface UpsertOAuthUserInput {
+  name: string;
+  email: string;
+  provider: string;
+  providerAccountId: string;
+}
+
 export function insertUser(db: Database.Database, input: InsertUserInput): void {
   db.prepare(
-    "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)"
+    "INSERT INTO users (name, email, password_hash, provider) VALUES (?, ?, ?, 'credentials')"
   ).run(input.name, input.email, input.passwordHash);
 }
 
 export function getUserByEmail(db: Database.Database, email: string) {
   return db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any | undefined;
+}
+
+export function upsertOAuthUser(db: Database.Database, input: UpsertOAuthUserInput) {
+  const existing = db.prepare(
+    "SELECT * FROM users WHERE provider = ? AND provider_account_id = ?"
+  ).get(input.provider, input.providerAccountId) as any | undefined;
+
+  if (existing) {
+    db.prepare(
+      "UPDATE users SET name = ?, email = ? WHERE id = ?"
+    ).run(input.name, input.email, existing.id);
+    return { ...existing, name: input.name, email: input.email };
+  }
+
+  const emailUser = getUserByEmail(db, input.email);
+  if (emailUser) {
+    db.prepare(
+      "UPDATE users SET provider = ?, provider_account_id = ?, name = ? WHERE id = ?"
+    ).run(input.provider, input.providerAccountId, input.name, emailUser.id);
+    return { ...emailUser, provider: input.provider, provider_account_id: input.providerAccountId, name: input.name };
+  }
+
+  const result = db.prepare(
+    "INSERT INTO users (name, email, password_hash, provider, provider_account_id) VALUES (?, ?, NULL, ?, ?)"
+  ).run(input.name, input.email, input.provider, input.providerAccountId);
+
+  return { id: result.lastInsertRowid, name: input.name, email: input.email, provider: input.provider };
 }
 
 interface InsertRepoInput {
@@ -105,6 +139,30 @@ export function getRepositoriesByUser(db: Database.Database, userId: string) {
   return db.prepare(
     "SELECT * FROM repositories WHERE user_id = ? AND is_active = 1"
   ).all(userId) as any[];
+}
+
+export function getRepositoriesWithLastCommit(db: Database.Database, userId: string) {
+  return db.prepare(`
+    SELECT r.*,
+      cc.message   AS last_commit_message,
+      cc.committed_at AS last_commit_at,
+      cc.author    AS last_commit_author,
+      cc.sha       AS last_commit_sha,
+      sl.completed_at AS last_sync_at,
+      sl.status       AS last_sync_status
+    FROM repositories r
+    LEFT JOIN (
+      SELECT repository_id, message, committed_at, author, sha,
+        ROW_NUMBER() OVER (PARTITION BY repository_id ORDER BY committed_at DESC) AS rn
+      FROM commit_cache
+    ) cc ON cc.repository_id = r.id AND cc.rn = 1
+    LEFT JOIN (
+      SELECT repository_id, completed_at, status,
+        ROW_NUMBER() OVER (PARTITION BY repository_id ORDER BY completed_at DESC) AS rn
+      FROM sync_logs WHERE user_id = ?
+    ) sl ON sl.repository_id = r.id AND sl.rn = 1
+    WHERE r.user_id = ? AND r.is_active = 1
+  `).all(userId, userId) as any[];
 }
 
 export function getRepositoryByIdAndUser(db: Database.Database, id: number, userId: string) {

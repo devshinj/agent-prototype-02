@@ -1,8 +1,5 @@
 // src/scheduler/polling-manager.ts
 import cron, { type ScheduledTask } from "node-cron";
-import Database from "better-sqlite3";
-import { join } from "path";
-import { createTables, migrateSchema } from "@/infra/db/schema";
 import {
   getActiveUsersWithRepos,
   getRepositoriesByUser,
@@ -19,21 +16,28 @@ import { pullRepository, getCommitsSince, getCommitDiff, getBranches, getCommits
 import { analyzeCommits, analyzeCommitWithDiff } from "@/infra/gemini/gemini-client";
 import { groupCommitsByDateAndProject } from "@/core/analyzer/commit-grouper";
 import { isAmbiguousCommitMessage } from "@/core/analyzer/task-extractor";
+import { getDb } from "@/infra/db/connection";
 import type { CommitRecord } from "@/core/types";
 
-let db: Database.Database | null = null;
 let cronTask: ScheduledTask | null = null;
 let isRunning = false;
 let lastRunAt: string | null = null;
 let syncStartedAt: string | null = null;
 
-function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(join(process.cwd(), "data", "tracker.db"));
-    createTables(db);
-    migrateSchema(db);
+const repoSyncConcurrency = 3;
+
+async function pMap<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+  concurrency: number
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const settled = await Promise.allSettled(batch.map(fn));
+    results.push(...settled);
   }
-  return db;
+  return results;
 }
 
 export function getSchedulerStatus() {
@@ -60,6 +64,82 @@ async function enrichAmbiguousCommits(commits: CommitRecord[], repoPath: string)
   return enriched;
 }
 
+async function syncOneRepo(database: ReturnType<typeof getDb>, userId: string, repo: any): Promise<void> {
+  await pullRepository(repo.clone_path);
+
+  // language 갱신
+  try {
+    const language = await fetchRepoLanguage(repo.owner, repo.repo);
+    updatePrimaryLanguage(database, repo.id, language);
+  } catch (langErr) {
+    console.error(`[Scheduler] ${repo.owner}/${repo.repo}: language fetch failed -`, langErr);
+  }
+
+  // 캐시 빌드 (증분)
+  try {
+    const branches = await getBranches(repo.clone_path);
+    const latestDate = getLatestCacheDate(database, repo.id);
+    const cacheCommits = await getCommitsForCache(repo.clone_path, branches, latestDate ?? undefined);
+    if (cacheCommits.length > 0) {
+      const rows: CacheCommit[] = cacheCommits.map(c => ({
+        sha: c.sha,
+        repositoryId: repo.id,
+        branch: c.branch,
+        author: c.author,
+        message: c.message,
+        committedDate: c.committedDate,
+        committedAt: c.committedAt,
+      }));
+      const inserted = insertCommitCache(database, rows);
+      if (inserted > 0) {
+        console.log(`[Scheduler] ${repo.owner}/${repo.repo}: cached ${inserted} new commits`);
+      }
+    }
+  } catch (cacheErr) {
+    console.error(`[Scheduler] ${repo.owner}/${repo.repo}: cache build failed -`, cacheErr);
+  }
+
+  const commits = await getCommitsSince(repo.clone_path, repo.branch, repo.clone_url, repo.last_synced_sha);
+
+  if (commits.length === 0) {
+    console.log(`[Scheduler] ${repo.owner}/${repo.repo}: no new commits`);
+    insertSyncLogForUser(database, {
+      repositoryId: repo.id,
+      userId,
+      status: "success",
+      commitsProcessed: 0,
+      tasksCreated: 0,
+      errorMessage: null,
+    });
+    return;
+  }
+
+  console.log(`[Scheduler] ${repo.owner}/${repo.repo}: found ${commits.length} new commits`);
+
+  // 모호한 커밋 보강
+  const enrichedCommits = await enrichAmbiguousCommits(commits, repo.clone_path);
+
+  // 그룹핑 + Gemini 분석 (직렬 — Gemini rate limit 보호)
+  const groups = groupCommitsByDateAndProject(enrichedCommits);
+  let tasksCreated = 0;
+  for (const group of groups) {
+    const tasks = await analyzeCommits(group.commits, group.project, group.date);
+    tasksCreated += tasks.length;
+  }
+
+  updateLastSyncedSha(database, repo.id, commits[0].sha);
+  insertSyncLogForUser(database, {
+    repositoryId: repo.id,
+    userId,
+    status: "success",
+    commitsProcessed: commits.length,
+    tasksCreated,
+    errorMessage: null,
+  });
+
+  console.log(`[Scheduler] ${repo.owner}/${repo.repo}: synced ${commits.length} commits, created ${tasksCreated} tasks`);
+}
+
 export async function runSyncCycle(): Promise<void> {
   if (isRunning) {
     console.log("[Scheduler] Sync already in progress, skipping");
@@ -82,79 +162,14 @@ export async function runSyncCycle(): Promise<void> {
           continue;
         }
 
-        const repos = getRepositoriesByUser(database, userId);
+        const repos = getRepositoriesByUser(database, userId).filter((r: any) => r.clone_path);
 
-        for (const repo of repos) {
-          if (!repo.clone_path) continue;
+        const results = await pMap(repos, (repo: any) => syncOneRepo(database, userId, repo), repoSyncConcurrency);
 
-          try {
-            await pullRepository(repo.clone_path);
-
-            // language 갱신
-            try {
-              const language = await fetchRepoLanguage(repo.owner, repo.repo);
-              updatePrimaryLanguage(database, repo.id, language);
-            } catch (langErr) {
-              console.error(`[Scheduler] ${repo.owner}/${repo.repo}: language fetch failed -`, langErr);
-            }
-
-            // --- 캐시 빌드 (증분) ---
-            try {
-              const branches = await getBranches(repo.clone_path);
-              const latestDate = getLatestCacheDate(database, repo.id);
-              const cacheCommits = await getCommitsForCache(repo.clone_path, branches, latestDate ?? undefined);
-              if (cacheCommits.length > 0) {
-                const rows: CacheCommit[] = cacheCommits.map(c => ({
-                  sha: c.sha,
-                  repositoryId: repo.id,
-                  branch: c.branch,
-                  author: c.author,
-                  message: c.message,
-                  committedDate: c.committedDate,
-                  committedAt: c.committedAt,
-                }));
-                const inserted = insertCommitCache(database, rows);
-                if (inserted > 0) {
-                  console.log(`[Scheduler] ${repo.owner}/${repo.repo}: cached ${inserted} new commits`);
-                }
-              }
-            } catch (cacheErr) {
-              console.error(`[Scheduler] ${repo.owner}/${repo.repo}: cache build failed -`, cacheErr);
-            }
-
-            const commits = await getCommitsSince(repo.clone_path, repo.branch, repo.clone_url, repo.last_synced_sha);
-
-            if (commits.length === 0) {
-              console.log(`[Scheduler] ${repo.owner}/${repo.repo}: no new commits`);
-              continue;
-            }
-
-            console.log(`[Scheduler] ${repo.owner}/${repo.repo}: found ${commits.length} new commits`);
-
-            // 모호한 커밋 보강
-            const enrichedCommits = await enrichAmbiguousCommits(commits, repo.clone_path);
-
-            // 그룹핑 + Gemini 분석
-            const groups = groupCommitsByDateAndProject(enrichedCommits);
-            let tasksCreated = 0;
-            for (const group of groups) {
-              const tasks = await analyzeCommits(group.commits, group.project, group.date);
-              tasksCreated += tasks.length;
-            }
-
-            updateLastSyncedSha(database, repo.id, commits[0].sha);
-            insertSyncLogForUser(database, {
-              repositoryId: repo.id,
-              userId,
-              status: "success",
-              commitsProcessed: commits.length,
-              tasksCreated,
-              errorMessage: null,
-            });
-
-            console.log(`[Scheduler] ${repo.owner}/${repo.repo}: synced ${commits.length} commits, created ${tasksCreated} tasks`);
-          } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
+        for (let i = 0; i < results.length; i++) {
+          if (results[i].status === "rejected") {
+            const repo = repos[i];
+            const errorMsg = (results[i] as PromiseRejectedResult).reason?.message ?? String((results[i] as PromiseRejectedResult).reason);
             insertSyncLogForUser(database, {
               repositoryId: repo.id,
               userId,

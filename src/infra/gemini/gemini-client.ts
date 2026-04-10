@@ -11,6 +11,28 @@ function getClient(): GoogleGenAI {
   return client;
 }
 
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelayMs = 2000
+): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const status = error?.status ?? error?.httpStatusCode;
+      const isRetryable = status === 429 || status === 503 || status >= 500;
+
+      if (!isRetryable || attempt === maxRetries) throw error;
+
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      console.warn(`[Gemini] ${status} error, retry ${attempt + 1}/${maxRetries} in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("unreachable");
+}
+
 export function buildAnalysisPrompt(commits: CommitRecord[], project: string, date: string): string {
   const commitSummaries = commits
     .map(
@@ -77,10 +99,12 @@ export async function analyzeCommits(
   const genai = getClient();
   const prompt = buildAnalysisPrompt(commits, project, date);
 
-  const result = await genai.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: prompt,
-  });
+  const result = await withRetry(() =>
+    genai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    })
+  );
 
   const text = result.text ?? "";
   const shas = commits.map((c) => c.sha);
@@ -103,10 +127,12 @@ ${diff.slice(0, 3000)}
 
 한국어로 한 줄 요약만 응답해주세요.`;
 
-  const result = await genai.models.generateContent({
-    model: "gemini-2.0-flash",
-    contents: prompt,
-  });
+  const result = await withRetry(() =>
+    genai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    })
+  );
 
   return result.text ?? commit.message;
 }

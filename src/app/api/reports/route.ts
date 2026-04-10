@@ -1,28 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import Database from "better-sqlite3";
-import { join } from "path";
-import { createTables, migrateSchema } from "@/infra/db/schema";
 import { insertReport, getReportsByUser } from "@/infra/db/report";
 import { auth } from "@/lib/auth";
-
-function getDb() {
-  const db = new Database(join(process.cwd(), "data", "tracker.db"));
-  createTables(db);
-  migrateSchema(db);
-  return db;
-}
+import { getDb } from "@/infra/db/connection";
 
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const db = getDb();
-  try {
-    const reports = getReportsByUser(db, session.user.id);
-    return NextResponse.json(reports);
-  } finally {
-    db.close();
-  }
+  const reports = getReportsByUser(db, session.user.id);
+  return NextResponse.json(reports);
 }
 
 export async function POST(request: NextRequest) {
@@ -37,20 +24,16 @@ export async function POST(request: NextRequest) {
   }
 
   const db = getDb();
-  try {
-    const id = insertReport(db, {
-      userId: session.user.id,
-      repositoryId,
-      project,
-      date,
-      title,
-      content: content ?? "",
-      dateStart,
-      dateEnd,
-      status,
-    });
-    return NextResponse.json({ id, message: "Report saved" }, { status: 201 });
-  } finally {
-    db.close();
-  }
+  const id = insertReport(db, {
+    userId: session.user.id,
+    repositoryId,
+    project,
+    date,
+    title,
+    content: content ?? "",
+    dateStart,
+    dateEnd,
+    status,
+  });
+  return NextResponse.json({ id, message: "Report saved" }, { status: 201 });
 }

@@ -8,6 +8,7 @@ import {
   CalendarDays, GitCommit, GitBranch, FolderGit2, FileText, ChevronRight, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { projectColor, oklch } from "@/lib/color-hash";
 
 interface BranchCommits {
   branch: string;
@@ -126,13 +127,24 @@ export function RangeDetailPanel({ rangeStart, rangeEnd, repoIds }: RangeDetailP
 
       {summary.repos.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-3">
-          {summary.repos.map((repo) => (
+          {summary.repos.map((repo) => {
+            const color = projectColor(`${repo.owner}/${repo.repoName}`);
+            return (
             <Card key={repo.repoId} className="flex-1 min-w-[200px]">
               <CardContent className="py-2 px-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FolderGit2 className="h-3.5 w-3.5 text-primary" />
+                  <div
+                    className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: oklch(color.bgLight) }}
+                  >
+                    <FolderGit2 className="h-2.5 w-2.5" style={{ color: oklch(color.solid) }} />
+                  </div>
                   <span className="text-xs font-medium">{repo.owner}/{repo.repoName}</span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{repo.count}</Badge>
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] px-1.5 py-0"
+                    style={{ backgroundColor: oklch(color.bgLight), color: oklch(color.solid) }}
+                  >{repo.count}</Badge>
                 </div>
                 <Button
                   variant="outline"
@@ -149,7 +161,8 @@ export function RangeDetailPanel({ rangeStart, rangeEnd, repoIds }: RangeDetailP
                 </Button>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -181,12 +194,23 @@ export function RangeDetailPanel({ rangeStart, rangeEnd, repoIds }: RangeDetailP
 
                   {isDateOpen && (
                     <div className="ml-6 mt-2 space-y-2">
-                      {day.repos.map((repo) => (
+                      {day.repos.map((repo) => {
+                        const rColor = projectColor(`${repo.owner}/${repo.repoName}`);
+                        return (
                         <div key={repo.repoId} className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <FolderGit2 className="h-3.5 w-3.5 text-primary" />
+                            <div
+                              className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0"
+                              style={{ backgroundColor: oklch(rColor.bgLight) }}
+                            >
+                              <FolderGit2 className="h-2.5 w-2.5" style={{ color: oklch(rColor.solid) }} />
+                            </div>
                             <span className="text-xs font-medium">{repo.owner}/{repo.repoName}</span>
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] px-1.5 py-0"
+                              style={{ backgroundColor: oklch(rColor.bgLight), color: oklch(rColor.solid) }}
+                            >
                               {repo.branches.reduce((s, b) => s + b.commits.length, 0)} 커밋
                             </Badge>
                           </div>
@@ -231,7 +255,8 @@ export function RangeDetailPanel({ rangeStart, rangeEnd, repoIds }: RangeDetailP
                             })}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>

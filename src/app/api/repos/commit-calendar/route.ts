@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Database from "better-sqlite3";
-import { join } from "path";
-import { createTables, migrateSchema } from "@/infra/db/schema";
 import { getRepositoriesByUser, getCommitCountsByDateRange } from "@/infra/db/repository";
 import { auth } from "@/lib/auth";
-
-function getDb() {
-  const db = new Database(join(process.cwd(), "data", "tracker.db"));
-  createTables(db);
-  migrateSchema(db);
-  return db;
-}
+import { getDb } from "@/infra/db/connection";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -51,7 +42,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(counts);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
-  } finally {
-    db.close();
   }
 }

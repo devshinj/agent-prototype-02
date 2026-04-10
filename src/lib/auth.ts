@@ -1,17 +1,8 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import Database from "better-sqlite3";
-import { join } from "path";
-import { createTables, migrateSchema } from "@/infra/db/schema";
-import { getUserByEmail } from "@/infra/db/repository";
-
-function getDb() {
-  const db = new Database(join(process.cwd(), "data", "tracker.db"));
-  createTables(db);
-  migrateSchema(db);
-  return db;
-}
+import { getUserByEmail, upsertOAuthUser } from "@/infra/db/repository";
+import { getDb } from "@/infra/db/connection";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -28,32 +19,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!email || !password) return null;
 
         const db = getDb();
-        try {
-          const user = getUserByEmail(db, email);
-          if (!user) return null;
+        const user = getUserByEmail(db, email);
+        if (!user) return null;
 
-          const valid = await bcrypt.compare(password, user.password_hash);
-          if (!valid) return null;
+        const valid = await bcrypt.compare(password, user.password_hash);
+        if (!valid) return null;
 
-          return { id: String(user.id), name: user.name, email: user.email };
-        } finally {
-          db.close();
-        }
+        return { id: String(user.id), name: user.name, email: user.email };
       },
     }),
     {
       id: "hrms",
       name: "HRMS",
-      type: "oidc",
-      issuer: process.env.AUTH_HRMS_ISSUER,
+      type: "oauth",
       clientId: process.env.AUTH_HRMS_ID,
       clientSecret: process.env.AUTH_HRMS_SECRET,
+      client: {
+        token_endpoint_auth_method: "client_secret_post",
+      },
       authorization: {
+        url: `${process.env.AUTH_HRMS_ISSUER}/api/oauth/authorize`,
         params: {
           scope: "openid profile email department",
           display: "popup",
         },
       },
+      token: `${process.env.AUTH_HRMS_ISSUER}/api/oauth/token`,
+      userinfo: `${process.env.AUTH_HRMS_ISSUER}/api/oauth/userinfo`,
       profile(profile) {
         return {
           id: profile.sub,
@@ -68,6 +60,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     strategy: "jwt",
   },
   callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider && account.provider !== "credentials" && profile) {
+        const db = getDb();
+        const dbUser = upsertOAuthUser(db, {
+          name: user.name || profile.name as string || "",
+          email: user.email || profile.email as string || "",
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+        });
+        user.id = String(dbUser.id);
+      }
+      return true;
+    },
     async jwt({ token, user, profile }) {
       if (user) {
         token.id = user.id;

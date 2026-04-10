@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/header";
 import { StatCard } from "@/components/data-display/stat-card";
-import { StatusIndicator } from "@/components/data-display/status-indicator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { repoColor, oklch } from "@/lib/color-hash";
+import { repoColor } from "@/lib/color-hash";
 import { ContributionHeatmap } from "@/components/data-display/contribution-heatmap";
+import { DotIdenticon } from "@/components/data-display/dot-identicon";
 import { LanguageBadge } from "@/components/data-display/language-badge";
+import { RefreshCw } from "lucide-react";
 
 function parseUTC(value: string): Date {
   // SQLite datetime('now')는 "2026-04-10 06:30:00" 형식(UTC, Z 없음)
@@ -106,10 +108,21 @@ const schedulerStateStyles: Record<SchedulerState, { dot: string; text: string }
   idle: { dot: "bg-gray-400", text: "text-muted-foreground" },
 };
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 6) return "🌙 늦은 밤이에요";
+  if (hour < 12) return "☀️ 좋은 아침이에요";
+  if (hour < 18) return "🌤️ 좋은 오후에요";
+  return "👋 수고하셨어요";
+}
+
 export default function DashboardPage() {
+  const { data: session } = useSession();
+  const userName = session?.user?.name;
   const [repos, setRepos] = useState<any[]>([]);
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
   const [syncing, setSyncing] = useState(false);
+  const [syncingRepoId, setSyncingRepoId] = useState<number | null>(null);
   const [heatmapData, setHeatmapData] = useState<Record<string, number>>({});
 
   const refreshData = useCallback(() => {
@@ -120,6 +133,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     refreshData();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshData();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [refreshData]);
 
   const handleSync = async () => {
@@ -140,6 +158,24 @@ export default function DashboardPage() {
     }
   };
 
+  const handleRepoSync = async (repoId: number) => {
+    setSyncingRepoId(repoId);
+    try {
+      const res = await fetch(`/api/repos/${repoId}/sync`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`동기화 완료 — ${data.commitsProcessed}건 처리`);
+        refreshData();
+      } else {
+        toast.error(data.error || "동기화 실패");
+      }
+    } catch {
+      toast.error("동기화 중 오류 발생");
+    } finally {
+      setSyncingRepoId(null);
+    }
+  };
+
   const lastSync = schedulerStatus?.lastRunAt
     ? formatRelativeDate(schedulerStatus.lastRunAt)
     : null;
@@ -150,7 +186,7 @@ export default function DashboardPage() {
   return (
     <div>
       <Header
-        title="대시보드"
+        title={userName ? `${getGreeting()}, ${userName}님` : "대시보드"}
         description="Git 커밋 모니터링 현황"
         actions={
           <Button onClick={handleSync} disabled={syncing}>
@@ -192,23 +228,52 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-3">
               {repos.map((repo: any) => {
-                const color = repoColor(repo.clone_url);
+                const isSyncing = syncingRepoId === repo.id;
+                const lastCommitTime = repo.last_commit_at
+                  ? formatRelativeDate(repo.last_commit_at)
+                  : null;
+                const lastSyncTime = repo.last_sync_at
+                  ? { relative: formatTimeAgo(repo.last_sync_at), detail: formatRelativeDate(repo.last_sync_at).detail }
+                  : null;
                 return (
-                  <div key={repo.id} className="flex items-center justify-between py-2 border-b border-border">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: oklch(color.solid) }}
-                      />
-                      <div>
+                  <div key={repo.id} className="flex items-center justify-between py-3 border-b border-border">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <DotIdenticon value={`${repo.owner}/${repo.repo}`} size={32} colorSet={repoColor(repo.clone_url)} className="flex-shrink-0" />
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{repo.owner}/{repo.repo}</p>
                           <LanguageBadge language={repo.primary_language} />
                         </div>
-                        <p className="text-sm text-muted-foreground">브랜치: {repo.branch}</p>
+                        {repo.last_commit_message ? (
+                          <p className="text-sm text-muted-foreground truncate max-w-md" title={repo.last_commit_message}>
+                            {repo.last_commit_message}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">커밋 없음</p>
+                        )}
+                        {lastCommitTime && (
+                          <p className="text-xs text-muted-foreground mt-0.5" title={lastCommitTime.detail}>
+                            마지막 커밋: {lastCommitTime.relative}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <StatusIndicator status={repo.is_active ? "success" : "idle"} label={repo.is_active ? "활성" : "비활성"} />
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRepoSync(repo.id)}
+                        disabled={isSyncing}
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+                        {isSyncing ? "동기화 중..." : "동기화"}
+                      </Button>
+                      {lastSyncTime && (
+                        <span className="text-xs text-muted-foreground" title={lastSyncTime.detail}>
+                          {lastSyncTime.relative}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}

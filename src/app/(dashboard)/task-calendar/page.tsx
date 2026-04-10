@@ -260,13 +260,14 @@ export default function TaskCalendarPage() {
           <span>많음</span>
         </div>
 
-        {/* 하단 패널: 단일 날짜 or 기간 */}
-        {isRangeMode ? (
-          <RangeDetailPanel rangeStart={rangeStart} rangeEnd={rangeEnd} repoIds={repoIdsParam} />
-        ) : selectedDate ? (
-          <DateDetailPanel selectedDate={selectedDate} commitCount={selectedCount} repoIds={repoIdsParam} />
-        ) : null}
       </div>
+
+      {/* 하단 패널: 단일 날짜 or 기간 — 캘린더 그리드 바깥, 전체 너비 사용 */}
+      {isRangeMode ? (
+        <RangeDetailPanel rangeStart={rangeStart} rangeEnd={rangeEnd} repoIds={repoIdsParam} />
+      ) : selectedDate ? (
+        <DateDetailPanel selectedDate={selectedDate} commitCount={selectedCount} repoIds={repoIdsParam} />
+      ) : null}
     </div>
   );
 }

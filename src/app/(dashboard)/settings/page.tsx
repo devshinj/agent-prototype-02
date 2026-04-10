@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -189,90 +189,89 @@ export default function SettingsPage() {
             </h3>
             {gitCredentials.map((cred) => (
               <Card key={cred.id}>
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1 flex-1">
-                      {editingLabelId === cred.id ? (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={editingLabelValue}
-                            onChange={(e) => setEditingLabelValue(e.target.value)}
-                            className="h-8 max-w-xs"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleUpdateLabel(cred.id);
-                              if (e.key === "Escape") setEditingLabelId(null);
-                            }}
-                            autoFocus
-                          />
-                          <Button size="sm" variant="ghost" onClick={() => handleUpdateLabel(cred.id)}>저장</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setEditingLabelId(null)}>취소</Button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{cred.label || "(라벨 없음)"}</span>
-                          <Badge variant="secondary" className="text-xs">Git</Badge>
-                        </div>
-                      )}
-
-                      <div className="text-sm text-muted-foreground">
-                        토큰: <code className="bg-muted px-1 rounded">{cred.maskedToken}</code>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="space-y-1">
+                    {editingLabelId === cred.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={editingLabelValue}
+                          onChange={(e) => setEditingLabelValue(e.target.value)}
+                          className="h-8 max-w-xs"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleUpdateLabel(cred.id);
+                            if (e.key === "Escape") setEditingLabelId(null);
+                          }}
+                          autoFocus
+                        />
+                        <Button size="sm" onClick={() => handleUpdateLabel(cred.id)}>저장</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingLabelId(null)}>취소</Button>
                       </div>
-
-                      <div className="text-xs text-muted-foreground">
-                        등록: {new Date(cred.createdAt).toLocaleDateString("ko-KR")}
-                        {cred.updatedAt !== cred.createdAt && (
-                          <> · 갱신: {new Date(cred.updatedAt).toLocaleDateString("ko-KR")}</>
-                        )}
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{cred.label || "(라벨 없음)"}</span>
+                        <Badge variant="secondary" className="text-xs">Git</Badge>
                       </div>
+                    )}
 
-                      {renewingTokenId === cred.id && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <Input
-                            type="password"
-                            placeholder={providerPresets.git.placeholder}
-                            value={renewTokenValue}
-                            onChange={(e) => setRenewTokenValue(e.target.value)}
-                            className="h-8 max-w-xs"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleRenewToken(cred.id);
-                              if (e.key === "Escape") { setRenewingTokenId(null); setRenewTokenValue(""); }
-                            }}
-                          />
-                          <Button size="sm" onClick={() => handleRenewToken(cred.id)}>저장</Button>
-                          <Button size="sm" variant="ghost" onClick={() => { setRenewingTokenId(null); setRenewTokenValue(""); }}>취소</Button>
-                        </div>
+                    <div className="text-sm text-muted-foreground truncate">
+                      토큰: <code className="bg-muted px-1 rounded">{cred.maskedToken}</code>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground">
+                      등록: {new Date(cred.createdAt).toLocaleDateString("ko-KR")}
+                      {cred.updatedAt !== cred.createdAt && (
+                        <> · 갱신: {new Date(cred.updatedAt).toLocaleDateString("ko-KR")}</>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="라벨 수정"
-                        onClick={() => {
-                          setEditingLabelId(cred.id);
-                          setEditingLabelValue(cred.label || "");
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="토큰 갱신"
-                        onClick={() => setRenewingTokenId(renewingTokenId === cred.id ? null : cred.id)}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="삭제"
-                        onClick={() => handleDelete(cred.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                    {renewingTokenId === cred.id && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input
+                          type="password"
+                          placeholder={providerPresets.git.placeholder}
+                          value={renewTokenValue}
+                          onChange={(e) => setRenewTokenValue(e.target.value)}
+                          className="h-8 max-w-xs"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRenewToken(cred.id);
+                            if (e.key === "Escape") { setRenewingTokenId(null); setRenewTokenValue(""); }
+                          }}
+                        />
+                        <Button size="sm" onClick={() => handleRenewToken(cred.id)}>저장</Button>
+                        <Button size="sm" variant="ghost" onClick={() => { setRenewingTokenId(null); setRenewTokenValue(""); }}>취소</Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 border-t pt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingLabelId(cred.id);
+                        setEditingLabelValue(cred.label || "");
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5 mr-1" />
+                      라벨 수정
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRenewingTokenId(renewingTokenId === cred.id ? null : cred.id)}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      토큰 갱신
+                    </Button>
+                    <div className="flex-1" />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(cred.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      삭제
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -287,18 +286,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Gemini API</CardTitle>
-            <CardDescription>서버 공통 설정으로 관리됩니다</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Gemini API 키는 서버 환경 변수(<code className="bg-muted px-1 rounded">GEMINI_API_KEY</code>)로 관리됩니다.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

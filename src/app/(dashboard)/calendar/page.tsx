@@ -5,6 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { projectColor, oklch } from "@/lib/color-hash";
 
 function getDaysInMonth(year: number, month: number): Date[] {
   const days: Date[] = [];
@@ -69,15 +70,15 @@ export default function CalendarPage() {
             <Button variant="ghost" onClick={nextMonth}>다음 &gt;</Button>
           </div>
 
-          <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
+          <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
             {weekDays.map((day) => (
-              <div key={day} className="bg-gray-50 p-2 text-center text-xs font-medium text-gray-500">
+              <div key={day} className="bg-muted p-2 text-center text-xs font-medium text-muted-foreground">
                 {day}
               </div>
             ))}
 
             {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-              <div key={`empty-${i}`} className="bg-white p-2 min-h-[100px]" />
+              <div key={`empty-${i}`} className="bg-card p-2 min-h-[80px]" />
             ))}
 
             {days.map((day) => {
@@ -90,21 +91,32 @@ export default function CalendarPage() {
                 <div
                   key={dateStr}
                   onClick={() => setSelectedDate(dateStr)}
-                  className={`bg-white p-2 min-h-[100px] cursor-pointer transition-colors hover:bg-blue-50 ${
-                    isSelected ? "ring-2 ring-blue-500" : ""
+                  className={`bg-card p-2 min-h-[80px] cursor-pointer transition-colors hover:bg-accent ${
+                    isSelected ? "ring-2 ring-ring" : ""
                   }`}
                 >
-                  <span className={`text-sm font-medium ${isToday ? "bg-blue-600 text-white rounded-full w-6 h-6 inline-flex items-center justify-center" : "text-gray-700"}`}>
+                  <span className={`text-sm font-medium ${isToday ? "bg-foreground text-background rounded-full w-6 h-6 inline-flex items-center justify-center" : "text-foreground"}`}>
                     {day.getDate()}
                   </span>
                   <div className="mt-1 space-y-1">
-                    {dayTasks.slice(0, 3).map((t: any) => (
-                      <div key={t.id} className="text-xs truncate text-gray-600 bg-blue-50 rounded px-1 py-0.5">
-                        {extractProperty(t, "제목")}
-                      </div>
-                    ))}
+                    {dayTasks.slice(0, 3).map((t: any) => {
+                      const project = extractProperty(t, "프로젝트");
+                      const color = projectColor(project || "default");
+                      return (
+                        <div
+                          key={t.id}
+                          className="text-xs truncate rounded px-1 py-0.5"
+                          style={{
+                            backgroundColor: oklch(color.bgLight),
+                            color: oklch(color.solid),
+                          }}
+                        >
+                          {extractProperty(t, "제목")}
+                        </div>
+                      );
+                    })}
                     {dayTasks.length > 3 && (
-                      <span className="text-xs text-gray-400">+{dayTasks.length - 3}개 더</span>
+                      <span className="text-xs text-muted-foreground">+{dayTasks.length - 3}개 더</span>
                     )}
                   </div>
                 </div>
@@ -119,19 +131,32 @@ export default function CalendarPage() {
           <CardContent className="pt-6">
             <h3 className="text-lg font-semibold mb-3">{selectedDate} 태스크</h3>
             {(tasksByDate.get(selectedDate) || []).length === 0 ? (
-              <p className="text-sm text-gray-500">이 날짜에 기록된 태스크가 없습니다</p>
+              <p className="text-sm text-muted-foreground">이 날짜에 기록된 태스크가 없습니다</p>
             ) : (
               <div className="space-y-3">
-                {(tasksByDate.get(selectedDate) || []).map((t: any) => (
-                  <div key={t.id} className="border-b border-gray-100 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{extractProperty(t, "제목")}</span>
-                      <Badge variant="secondary">{extractProperty(t, "프로젝트")}</Badge>
-                      <Badge>{extractProperty(t, "작업 복잡도")}</Badge>
+                {(tasksByDate.get(selectedDate) || []).map((t: any) => {
+                  const project = extractProperty(t, "프로젝트");
+                  const projColor = projectColor(project || "default");
+                  return (
+                    <div key={t.id} className="border-b border-border pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{extractProperty(t, "제목")}</span>
+                        <Badge
+                          variant="secondary"
+                          className="text-xs"
+                          style={{
+                            backgroundColor: oklch(projColor.bgLight),
+                            color: oklch(projColor.solid),
+                          }}
+                        >
+                          {project}
+                        </Badge>
+                        <Badge variant="outline">{extractProperty(t, "작업 복잡도")}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">{extractProperty(t, "작업 설명")}</p>
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">{extractProperty(t, "작업 설명")}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
