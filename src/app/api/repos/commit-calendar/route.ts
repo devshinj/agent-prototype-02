@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Database from "better-sqlite3";
 import { join } from "path";
 import { createTables, migrateSchema } from "@/infra/db/schema";
-import { getRepositoriesByUser } from "@/infra/db/repository";
-import { getBranches, getCommitCountsByDate } from "@/infra/git/git-client";
+import { getRepositoriesByUser, getCommitCountsByDateRange } from "@/infra/db/repository";
 import { auth } from "@/lib/auth";
 
 function getDb() {
@@ -30,24 +29,26 @@ export async function GET(request: NextRequest) {
       const repoIdSet = new Set(repoIdsParam.split(",").map(Number));
       repos = repos.filter((r: any) => repoIdSet.has(r.id));
     }
-    const totalCounts: Record<string, number> = {};
 
+    const repoIds = repos.map((r: any) => r.id);
+    if (repoIds.length === 0) return NextResponse.json({});
+
+    const allAuthors: string[] = [];
     for (const repo of repos) {
-      if (!repo.clone_path) continue;
-
-      try {
-        const branches = await getBranches(repo.clone_path);
-        const counts = await getCommitCountsByDate(repo.clone_path, branches, since, until);
-
-        for (const [date, count] of Object.entries(counts)) {
-          totalCounts[date] = (totalCounts[date] || 0) + count;
-        }
-      } catch {
-        // 저장소 오류 시 무시하고 계속
+      if (repo.git_author) {
+        allAuthors.push(...repo.git_author.split(",").map((a: string) => a.trim()).filter(Boolean));
       }
     }
 
-    return NextResponse.json(totalCounts);
+    const counts = getCommitCountsByDateRange(
+      db,
+      repoIds,
+      since || "1970-01-01",
+      until || "2099-12-31",
+      allAuthors.length > 0 ? allAuthors : undefined
+    );
+
+    return NextResponse.json(counts);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   } finally {
