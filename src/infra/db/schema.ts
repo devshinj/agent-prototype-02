@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 
 export function createTables(db: Database.Database): void {
+  db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE IF NOT EXISTS repositories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -13,6 +14,7 @@ export function createTables(db: Database.Database): void {
       user_id TEXT NOT NULL DEFAULT '',
       clone_url TEXT NOT NULL DEFAULT '',
       clone_path TEXT,
+      git_author TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(user_id, clone_url)
@@ -60,6 +62,20 @@ export function createTables(db: Database.Database): void {
       started_at TEXT NOT NULL DEFAULT (datetime('now')),
       completed_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS commit_cache (
+      sha TEXT PRIMARY KEY,
+      repository_id INTEGER NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
+      branch TEXT NOT NULL,
+      author TEXT NOT NULL,
+      message TEXT NOT NULL,
+      committed_date TEXT NOT NULL,
+      committed_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_commit_cache_repo_date
+      ON commit_cache(repository_id, committed_date);
   `);
 }
 
@@ -75,6 +91,9 @@ export function migrateSchema(db: Database.Database): void {
   }
   if (!repoColumnNames.includes("clone_path")) {
     db.exec("ALTER TABLE repositories ADD COLUMN clone_path TEXT");
+  }
+  if (!repoColumnNames.includes("git_author")) {
+    db.exec("ALTER TABLE repositories ADD COLUMN git_author TEXT");
   }
 
   const syncColumns = db.prepare("PRAGMA table_info(sync_logs)").all() as any[];
