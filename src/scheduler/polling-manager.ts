@@ -10,19 +10,13 @@ import {
   insertSyncLogForUser,
   getLatestCacheDate,
   insertCommitCache,
+  updatePrimaryLanguage,
   type CacheCommit,
 } from "@/infra/db/repository";
+import { fetchRepoLanguage } from "@/infra/github/github-client";
 import { getCredentialByUserAndProvider } from "@/infra/db/credential";
-import { decrypt } from "@/infra/crypto/token-encryption";
 import { pullRepository, getCommitsSince, getCommitDiff, getBranches, getCommitsForCache } from "@/infra/git/git-client";
 import { analyzeCommits, analyzeCommitWithDiff } from "@/infra/gemini/gemini-client";
-import {
-  createCommitLogPage,
-  createDailyTaskPage,
-  isCommitAlreadySynced,
-  isDailyTaskExists,
-  updateDailyTaskPage,
-} from "@/infra/notion/notion-client";
 import { groupCommitsByDateAndProject } from "@/core/analyzer/commit-grouper";
 import { isAmbiguousCommitMessage } from "@/core/analyzer/task-extractor";
 import type { CommitRecord } from "@/core/types";
@@ -31,6 +25,7 @@ let db: Database.Database | null = null;
 let cronTask: ScheduledTask | null = null;
 let isRunning = false;
 let lastRunAt: string | null = null;
+let syncStartedAt: string | null = null;
 
 function getDb(): Database.Database {
   if (!db) {
@@ -45,7 +40,8 @@ export function getSchedulerStatus() {
   return {
     isRunning,
     lastRunAt,
-    nextRunAt: cronTask ? null : null,
+    syncStartedAt,
+    scheduled: cronTask !== null,
     intervalMin: 15,
   };
 }
@@ -71,6 +67,7 @@ export async function runSyncCycle(): Promise<void> {
   }
 
   isRunning = true;
+  syncStartedAt = new Date().toISOString();
   const database = getDb();
 
   try {
@@ -85,19 +82,6 @@ export async function runSyncCycle(): Promise<void> {
           continue;
         }
 
-        const notionCred = getCredentialByUserAndProvider(database, userId, "notion");
-        if (!notionCred || !notionCred.metadata) {
-          console.log(`[Scheduler] User ${userId}: no notion credential, skipping`);
-          continue;
-        }
-
-        const notionMeta = JSON.parse(notionCred.metadata);
-        const notionConfig = {
-          apiKey: decrypt(notionCred.credential),
-          commitDbId: notionMeta.notionCommitDbId,
-          taskDbId: notionMeta.notionTaskDbId,
-        };
-
         const repos = getRepositoriesByUser(database, userId);
 
         for (const repo of repos) {
@@ -105,6 +89,14 @@ export async function runSyncCycle(): Promise<void> {
 
           try {
             await pullRepository(repo.clone_path);
+
+            // language 갱신
+            try {
+              const language = await fetchRepoLanguage(repo.owner, repo.repo);
+              updatePrimaryLanguage(database, repo.id, language);
+            } catch (langErr) {
+              console.error(`[Scheduler] ${repo.owner}/${repo.repo}: language fetch failed -`, langErr);
+            }
 
             // --- 캐시 빌드 (증분) ---
             try {
@@ -139,31 +131,15 @@ export async function runSyncCycle(): Promise<void> {
 
             console.log(`[Scheduler] ${repo.owner}/${repo.repo}: found ${commits.length} new commits`);
 
-            // 커밋 로그 동기화
-            for (const commit of commits) {
-              const alreadySynced = await isCommitAlreadySynced(notionConfig, commit.sha);
-              if (!alreadySynced) {
-                await createCommitLogPage(notionConfig, commit);
-              }
-            }
-
             // 모호한 커밋 보강
             const enrichedCommits = await enrichAmbiguousCommits(commits, repo.clone_path);
 
-            // 그룹핑 + 분석 + 태스크 생성
+            // 그룹핑 + Gemini 분석
             const groups = groupCommitsByDateAndProject(enrichedCommits);
             let tasksCreated = 0;
             for (const group of groups) {
               const tasks = await analyzeCommits(group.commits, group.project, group.date);
-              for (const task of tasks) {
-                const existingPageId = await isDailyTaskExists(notionConfig, task.project, task.date);
-                if (existingPageId) {
-                  await updateDailyTaskPage(notionConfig, existingPageId, task);
-                } else {
-                  await createDailyTaskPage(notionConfig, task);
-                  tasksCreated++;
-                }
-              }
+              tasksCreated += tasks.length;
             }
 
             updateLastSyncedSha(database, repo.id, commits[0].sha);

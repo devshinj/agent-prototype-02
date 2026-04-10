@@ -10,9 +10,11 @@ import {
   deleteRepositoryForUser,
   getRepositoryByIdAndUser,
   updateGitAuthor,
+  updatePrimaryLanguage,
   insertCommitCache,
   type CacheCommit,
 } from "@/infra/db/repository";
+import { fetchRepoLanguage } from "@/infra/github/github-client";
 import { getCredentialByUserAndProvider } from "@/infra/db/credential";
 import { decrypt } from "@/infra/crypto/token-encryption";
 import { parseGitUrl } from "@/infra/git/parse-git-url";
@@ -91,6 +93,19 @@ export async function POST(request: NextRequest) {
         await mkdir(join(process.cwd(), "data", "repos", userId, parsed!.owner), { recursive: true });
         await cloneRepository(cloneUrl, clonePath, token);
         console.log(`[Repos] Cloned ${cloneUrl} to ${clonePath}`);
+
+        // language 저장
+        try {
+          const language = await fetchRepoLanguage(parsed!.owner, parsed!.repo);
+          const langDb = getDb();
+          try {
+            updatePrimaryLanguage(langDb, repoRow.id, language);
+          } finally {
+            langDb.close();
+          }
+        } catch (langErr) {
+          console.error(`[Repos] Language fetch failed for ${cloneUrl}:`, langErr);
+        }
 
         // 초기 캐시 빌드
         try {
