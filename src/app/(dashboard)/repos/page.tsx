@@ -16,8 +16,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/data-display/empty-state";
 import { toast } from "sonner";
-import { GitBranch, GitCommit, Trash2, RefreshCw, ChevronRight, User, Plus, X } from "lucide-react";
+import { GitBranch, GitCommit, Trash2, RefreshCw, ChevronRight, User, Plus, X, Loader2, Search } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { repoColor, stringColor, oklch } from "@/lib/color-hash";
 import { DotIdenticon } from "@/components/data-display/dot-identicon";
 import { LanguageBadge } from "@/components/data-display/language-badge";
@@ -148,6 +151,15 @@ export default function ReposPage() {
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState<number | null>(null);
 
+  // 저장소 선택 탭용 state
+  const [credentials, setCredentials] = useState<any[]>([]);
+  const [selectedCredId, setSelectedCredId] = useState<string>("");
+  const [remoteRepos, setRemoteRepos] = useState<any[]>([]);
+  const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set());
+  const [repoSearch, setRepoSearch] = useState("");
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [registering, setRegistering] = useState(false);
+
   const fetchRepos = () => {
     fetch("/api/repos").then((r) => r.json()).then((data) => {
       if (Array.isArray(data)) setRepos(data);
@@ -155,6 +167,82 @@ export default function ReposPage() {
   };
 
   useEffect(() => { fetchRepos(); }, []);
+
+  const fetchCredentials = () => {
+    fetch("/api/credentials").then(r => r.json()).then(data => {
+      if (Array.isArray(data)) {
+        setCredentials(data.filter((c: any) => c.provider === "git" && c.metadata?.type));
+      }
+    });
+  };
+
+  useEffect(() => { fetchCredentials(); }, []);
+
+  const fetchRemoteRepos = async (credId: string) => {
+    setLoadingRepos(true);
+    setRemoteRepos([]);
+    setSelectedRepos(new Set());
+    try {
+      const res = await fetch(`/api/git-providers/repos?credentialId=${credId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRemoteRepos(data);
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "저장소 목록 조회 실패");
+      }
+    } finally {
+      setLoadingRepos(false);
+    }
+  };
+
+  const handleCredentialChange = (credId: string | null) => {
+    const id = credId ?? "";
+    setSelectedCredId(id);
+    if (id) fetchRemoteRepos(id);
+  };
+
+  const toggleRepo = (cloneUrl: string) => {
+    setSelectedRepos(prev => {
+      const next = new Set(prev);
+      if (next.has(cloneUrl)) next.delete(cloneUrl);
+      else next.add(cloneUrl);
+      return next;
+    });
+  };
+
+  const handleBatchAdd = async () => {
+    if (selectedRepos.size === 0) {
+      toast.error("저장소를 선택하세요");
+      return;
+    }
+    setRegistering(true);
+    try {
+      const repositories = remoteRepos
+        .filter(r => selectedRepos.has(r.cloneUrl))
+        .map(r => ({ cloneUrl: r.cloneUrl, branch: r.defaultBranch }));
+
+      const res = await fetch("/api/repos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repositories }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message);
+        setShowDialog(false);
+        setSelectedRepos(new Set());
+        setRemoteRepos([]);
+        setSelectedCredId("");
+        fetchRepos();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "등록 실패");
+      }
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!cloneUrl) {
@@ -317,36 +405,132 @@ export default function ReposPage() {
         </div>
       )}
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+      <Dialog open={showDialog} onOpenChange={(open) => {
+        setShowDialog(open);
+        if (!open) {
+          setSelectedCredId("");
+          setRemoteRepos([]);
+          setSelectedRepos(new Set());
+          setRepoSearch("");
+          setCloneUrl("");
+          setBranch("main");
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>저장소 추가</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Git 저장소 URL</label>
-              <Input
-                placeholder="https://github.com/owner/repo.git"
-                value={cloneUrl}
-                onChange={(e) => setCloneUrl(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground mt-1">GitHub, GitLab, Gitea 등 HTTPS URL을 지원합니다</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium">브랜치</label>
-              <Input
-                placeholder="main"
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDialog(false)}>취소</Button>
-            <Button onClick={handleAdd} disabled={loading}>
-              {loading ? "등록 중..." : "등록"}
-            </Button>
-          </DialogFooter>
+          <Tabs defaultValue="select" className="flex-1 flex flex-col min-h-0">
+            <TabsList className="w-full">
+              <TabsTrigger value="select" className="flex-1">저장소 선택</TabsTrigger>
+              <TabsTrigger value="manual" className="flex-1">URL 직접 입력</TabsTrigger>
+            </TabsList>
+
+            {/* 탭 A: 저장소 선택 */}
+            <TabsContent value="select" className="flex-1 flex flex-col min-h-0 space-y-3">
+              <Select value={selectedCredId} onValueChange={handleCredentialChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="자격증명 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {credentials.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.label} — {c.metadata?.host || "unknown"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {selectedCredId && (
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="저장소 검색..."
+                    value={repoSearch}
+                    onChange={(e) => setRepoSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              )}
+
+              {loadingRepos ? (
+                <div className="flex-1 flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : remoteRepos.length > 0 ? (
+                <div className="flex-1 overflow-y-auto min-h-0 space-y-1 border rounded-md p-2">
+                  {remoteRepos
+                    .filter(r => !repoSearch || r.fullName.toLowerCase().includes(repoSearch.toLowerCase()))
+                    .map((r: any) => {
+                      const alreadyRegistered = repos.some((existing: any) => existing.clone_url === r.cloneUrl);
+                      return (
+                        <label
+                          key={r.cloneUrl}
+                          className={`flex items-center gap-3 p-2 rounded-md transition-colors ${
+                            alreadyRegistered ? "opacity-50" : "hover:bg-muted/50 cursor-pointer"
+                          }`}
+                        >
+                          <Checkbox
+                            checked={alreadyRegistered || selectedRepos.has(r.cloneUrl)}
+                            disabled={alreadyRegistered}
+                            onCheckedChange={() => toggleRepo(r.cloneUrl)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">{r.fullName}</span>
+                              {r.isPrivate && <Badge variant="outline" className="text-[10px] px-1 py-0">Private</Badge>}
+                              {alreadyRegistered && <Badge variant="secondary" className="text-[10px] px-1 py-0">등록됨</Badge>}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {r.language && <span>{r.language}</span>}
+                              <span>{r.defaultBranch}</span>
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                </div>
+              ) : selectedCredId && !loadingRepos ? (
+                <p className="text-sm text-muted-foreground text-center py-8">저장소가 없습니다</p>
+              ) : null}
+
+              {selectedRepos.size > 0 && (
+                <DialogFooter>
+                  <span className="text-sm text-muted-foreground mr-auto">{selectedRepos.size}개 선택됨</span>
+                  <Button onClick={handleBatchAdd} disabled={registering}>
+                    {registering ? "등록 중..." : "등록"}
+                  </Button>
+                </DialogFooter>
+              )}
+            </TabsContent>
+
+            {/* 탭 B: URL 직접 입력 (기존) */}
+            <TabsContent value="manual" className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Git 저장소 URL</label>
+                <Input
+                  placeholder="https://github.com/owner/repo.git"
+                  value={cloneUrl}
+                  onChange={(e) => setCloneUrl(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">GitHub, GitLab, Gitea 등 HTTPS URL을 지원합니다</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">브랜치</label>
+                <Input
+                  placeholder="main"
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDialog(false)}>취소</Button>
+                <Button onClick={handleAdd} disabled={loading}>
+                  {loading ? "등록 중..." : "등록"}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
