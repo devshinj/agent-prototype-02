@@ -31,7 +31,16 @@ export function parseGitUrl(url: string): ParsedGitUrl {
 
 export function buildAuthenticatedUrl(cloneUrl: string, token: string): string {
   const url = new URL(cloneUrl);
-  url.username = token;
-  url.password = "";
-  return url.toString().replace(/:@/, "@");
+
+  if (url.host === "github.com") {
+    // GitHub: 토큰을 username에 넣는 방식
+    url.username = token;
+    url.password = "";
+    return url.toString().replace(/:@/, "@");
+  }
+
+  // Gitea/GitLab 등 self-hosted: Basic Auth (username:password) 형식
+  url.username = "oauth2";
+  url.password = token;
+  return url.toString();
 }

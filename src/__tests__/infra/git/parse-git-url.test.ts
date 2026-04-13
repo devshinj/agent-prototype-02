@@ -42,17 +42,22 @@ describe("parseGitUrl", () => {
 });
 
 describe("buildAuthenticatedUrl", () => {
-  it("should insert token into GitHub URL", () => {
+  it("should insert token as username for GitHub URL", () => {
     const result = buildAuthenticatedUrl("https://github.com/octocat/hello-world.git", "ghp_token123");
     expect(result).toBe("https://ghp_token123@github.com/octocat/hello-world.git");
   });
 
-  it("should insert token into GitLab URL", () => {
+  it("should use Basic Auth for self-hosted GitLab URL", () => {
     const result = buildAuthenticatedUrl("https://gitlab.com/group/project.git", "glpat-abc");
-    expect(result).toBe("https://glpat-abc@gitlab.com/group/project.git");
+    expect(result).toBe("https://oauth2:glpat-abc@gitlab.com/group/project.git");
   });
 
-  it("should handle URL without .git suffix", () => {
+  it("should use Basic Auth for self-hosted Gitea HTTP URL", () => {
+    const result = buildAuthenticatedUrl("http://gitea.cudodev.synology.me:5001/infra_dev/cuvia_tta_web.git", "mytoken");
+    expect(result).toBe("http://oauth2:mytoken@gitea.cudodev.synology.me:5001/infra_dev/cuvia_tta_web.git");
+  });
+
+  it("should handle GitHub URL without .git suffix", () => {
     const result = buildAuthenticatedUrl("https://github.com/owner/repo", "token");
     expect(result).toBe("https://token@github.com/owner/repo");
   });
