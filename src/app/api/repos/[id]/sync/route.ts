@@ -1,8 +1,11 @@
 // src/app/api/repos/[id]/sync/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { mkdir } from "fs/promises";
+import { dirname } from "path";
 import { getRepositoryByIdAndUser, updateLastSyncedSha, insertSyncLogForUser } from "@/infra/db/repository";
 import { getCredentialByUserAndProvider } from "@/infra/db/credential";
-import { pullRepository, getCommitsSince, getCommitDiff } from "@/infra/git/git-client";
+import { decrypt } from "@/infra/crypto/token-encryption";
+import { pullRepository, getCommitsSince, getCommitDiff, cloneRepository, RepoNotFoundError } from "@/infra/git/git-client";
 import { groupCommitsByDateAndProject } from "@/core/analyzer/commit-grouper";
 import { isAmbiguousCommitMessage } from "@/core/analyzer/task-extractor";
 import { analyzeCommits, analyzeCommitWithDiff } from "@/infra/gemini/gemini-client";
@@ -32,8 +35,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Git PAT not configured" }, { status: 400 });
     }
 
-    // 1. git fetch
-    await pullRepository(repo.clone_path);
+    // 1. git fetch (bare repo 없으면 re-clone)
+    try {
+      await pullRepository(repo.clone_path);
+    } catch (err) {
+      if (err instanceof RepoNotFoundError) {
+        const token = decrypt(gitCred.credential);
+        await mkdir(dirname(repo.clone_path), { recursive: true });
+        await cloneRepository(repo.clone_url, repo.clone_path, token);
+      } else {
+        throw err;
+      }
+    }
 
     // 2. 새 커밋 수집
     const commits = await getCommitsSince(repo.clone_path, repo.branch, repo.clone_url, repo.last_synced_sha);

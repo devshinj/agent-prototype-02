@@ -1,10 +1,26 @@
 // src/infra/git/git-client.ts
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { access } from "fs/promises";
 import type { CommitRecord } from "@/core/types";
 import { buildAuthenticatedUrl, parseGitUrl } from "@/infra/git/parse-git-url";
 
 const execFileAsync = promisify(execFile);
+
+export class RepoNotFoundError extends Error {
+  constructor(repoPath: string) {
+    super(`Bare repository not found: ${repoPath}`);
+    this.name = "RepoNotFoundError";
+  }
+}
+
+async function assertRepoExists(repoPath: string): Promise<void> {
+  try {
+    await access(repoPath);
+  } catch {
+    throw new RepoNotFoundError(repoPath);
+  }
+}
 
 const logFormat = "--format=%H%n%an%n%aI%n%s%n---END---";
 
@@ -26,6 +42,7 @@ export async function cloneRepository(cloneUrl: string, destPath: string, token:
 }
 
 export async function pullRepository(repoPath: string): Promise<void> {
+  await assertRepoExists(repoPath);
   await execFileAsync(
     "git",
     ["--git-dir", repoPath, "fetch", "origin"],

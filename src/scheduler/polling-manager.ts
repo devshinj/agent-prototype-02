@@ -12,12 +12,15 @@ import {
 } from "@/infra/db/repository";
 import { fetchRepoLanguage } from "@/infra/github/github-client";
 import { getCredentialByUserAndProvider } from "@/infra/db/credential";
-import { pullRepository, getCommitsSince, getCommitDiff, getBranches, getCommitsForCache } from "@/infra/git/git-client";
+import { pullRepository, getCommitsSince, getCommitDiff, getBranches, getCommitsForCache, cloneRepository, RepoNotFoundError } from "@/infra/git/git-client";
 import { analyzeCommits, analyzeCommitWithDiff } from "@/infra/gemini/gemini-client";
 import { groupCommitsByDateAndProject } from "@/core/analyzer/commit-grouper";
 import { isAmbiguousCommitMessage } from "@/core/analyzer/task-extractor";
+import { decrypt } from "@/infra/crypto/token-encryption";
 import { getDb } from "@/infra/db/connection";
 import type { CommitRecord } from "@/core/types";
+import { mkdir } from "fs/promises";
+import { join, dirname } from "path";
 
 let cronTask: ScheduledTask | null = null;
 let isRunning = false;
@@ -64,8 +67,26 @@ async function enrichAmbiguousCommits(commits: CommitRecord[], repoPath: string)
   return enriched;
 }
 
+async function recloneRepo(database: ReturnType<typeof getDb>, userId: string, repo: any): Promise<void> {
+  const gitCred = getCredentialByUserAndProvider(database, userId, "git");
+  if (!gitCred) throw new Error("Git credential not found for re-clone");
+  const token = decrypt(gitCred.credential);
+  await mkdir(dirname(repo.clone_path), { recursive: true });
+  await cloneRepository(repo.clone_url, repo.clone_path, token);
+  console.log(`[Scheduler] ${repo.owner}/${repo.repo}: re-cloned successfully`);
+}
+
 async function syncOneRepo(database: ReturnType<typeof getDb>, userId: string, repo: any): Promise<void> {
-  await pullRepository(repo.clone_path);
+  try {
+    await pullRepository(repo.clone_path);
+  } catch (err) {
+    if (err instanceof RepoNotFoundError) {
+      console.warn(`[Scheduler] ${repo.owner}/${repo.repo}: bare repo missing, re-cloning...`);
+      await recloneRepo(database, userId, repo);
+    } else {
+      throw err;
+    }
+  }
 
   // language 갱신
   try {
