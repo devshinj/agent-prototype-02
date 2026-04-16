@@ -11,6 +11,7 @@ import {
   updateLabel,
   updateCloneStatus,
   updatePrimaryLanguage,
+  updateAutoReportEnabled,
   insertCommitCache,
   type CacheCommit,
 } from "@/infra/db/repository";
@@ -177,11 +178,23 @@ export async function PATCH(request: NextRequest) {
   const userId = session.user.id;
 
   const body = await request.json();
-  const { id, gitAuthor, label, isActive } = body as { id: number; gitAuthor?: string; label?: string; isActive?: boolean };
+  const { id, gitAuthor, label, isActive, autoReportEnabled } = body as {
+    id: number;
+    gitAuthor?: string;
+    label?: string;
+    isActive?: boolean;
+    autoReportEnabled?: boolean;
+  };
 
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
   const db = getDb();
+
+  if (autoReportEnabled !== undefined) {
+    const updated = updateAutoReportEnabled(db, id, userId, autoReportEnabled);
+    if (!updated) return NextResponse.json({ error: "Repository not found" }, { status: 404 });
+    return NextResponse.json({ message: "Updated" });
+  }
 
   if (isActive !== undefined) {
     const repo = getRepositoryByIdAndUser(db, id, userId);

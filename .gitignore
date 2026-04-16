@@ -53,3 +53,6 @@ data/repos/
 deploy/*.tar.gz
 deploy/*.tar
 deploy/.env
+
+# Serena MCP tool cache
+.serena/

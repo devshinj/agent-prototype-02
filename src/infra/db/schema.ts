@@ -9,6 +9,7 @@ export function createTables(db: Database.Database): void {
       branch TEXT NOT NULL DEFAULT 'main',
       last_synced_sha TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
+      auto_report_enabled INTEGER NOT NULL DEFAULT 0,
       polling_interval_min INTEGER NOT NULL DEFAULT 15,
       user_id TEXT NOT NULL DEFAULT '',
       clone_url TEXT NOT NULL DEFAULT '',
@@ -211,6 +212,10 @@ export function migrateSchema(db: Database.Database): void {
         }
       } catch { /* 잘못된 URL은 무시 */ }
     }
+  }
+
+  if (!repoColumnNames.includes("auto_report_enabled")) {
+    db.exec("ALTER TABLE repositories ADD COLUMN auto_report_enabled INTEGER NOT NULL DEFAULT 0");
   }
 
   if (!repoColumnNames.includes("clone_status")) {

@@ -318,6 +318,7 @@ export default function ReposPage() {
   };
 
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [toggleTarget, setToggleTarget] = useState<{ id: number; nextActive: boolean } | null>(null);
 
   const [editingLabelId, setEditingLabelId] = useState<number | null>(null);
   const [labelDraft, setLabelDraft] = useState("");
@@ -345,22 +346,28 @@ export default function ReposPage() {
     setTimeout(() => labelInputRef.current?.focus(), 0);
   };
 
-  const handleToggleActive = async (e: React.MouseEvent, id: number, currentActive: number) => {
+  const handleToggleActive = (e: React.MouseEvent, id: number, currentEnabled: number) => {
     e.preventDefault();
     e.stopPropagation();
-    const newActive = !currentActive;
+    setToggleTarget({ id, nextActive: !currentEnabled });
+  };
+
+  const handleToggleConfirm = async () => {
+    if (!toggleTarget) return;
+    const { id, nextActive } = toggleTarget;
+    const prevEnabled = nextActive ? 0 : 1;
     // optimistic update
-    setRepos(prev => prev.map(r => r.id === id ? { ...r, is_active: newActive ? 1 : 0 } : r));
+    setRepos(prev => prev.map(r => r.id === id ? { ...r, auto_report_enabled: nextActive ? 1 : 0 } : r));
     const res = await fetch("/api/repos", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, isActive: newActive }),
+      body: JSON.stringify({ id, autoReportEnabled: nextActive }),
     });
     if (res.ok) {
-      toast.success(newActive ? "자동 보고서가 활성화되었습니다" : "자동 보고서가 비활성화되었습니다");
+      toast.success(nextActive ? "자동 일간 보고서가 활성화되었습니다" : "자동 일간 보고서가 비활성화되었습니다");
     } else {
       // rollback
-      setRepos(prev => prev.map(r => r.id === id ? { ...r, is_active: currentActive } : r));
+      setRepos(prev => prev.map(r => r.id === id ? { ...r, auto_report_enabled: prevEnabled } : r));
       toast.error("상태 변경 실패");
     }
   };
@@ -509,21 +516,27 @@ export default function ReposPage() {
                     <Tooltip>
                       <TooltipTrigger
                         className="flex items-center gap-1.5 cursor-pointer"
-                        onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); handleToggleActive(e, repo.id, repo.is_active); }}
+                        onClick={(e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); handleToggleActive(e, repo.id, repo.auto_report_enabled); }}
                       >
-                          <NotebookPen className={`h-3.5 w-3.5 ${repo.is_active ? "text-primary" : "text-muted-foreground"}`} />
+                          <NotebookPen className={`h-3.5 w-3.5 ${repo.auto_report_enabled ? "text-primary" : "text-muted-foreground"}`} />
                           <Switch
-                            checked={!!repo.is_active}
+                            checked={!!repo.auto_report_enabled}
                             tabIndex={-1}
                             className="pointer-events-none"
                           />
                       </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">
-                          {repo.is_active
-                            ? "자동 일간 보고서가 활성 상태입니다. 클릭하여 비활성화합니다."
-                            : "자동 일간 보고서가 꺼져 있습니다. 클릭하여 활성화합니다."}
-                        </p>
+                      <TooltipContent side="bottom" className="max-w-[260px]">
+                        <div className="text-xs space-y-1">
+                          <p className="font-medium">
+                            {repo.auto_report_enabled ? "자동 일간 보고서 ON" : "자동 일간 보고서 OFF"}
+                          </p>
+                          <p className="text-muted-foreground">
+                            매일 오전 9시에 전날 커밋을 분석해 업무 보고서를 자동 생성합니다.
+                          </p>
+                          <p className="text-muted-foreground">
+                            클릭하여 {repo.auto_report_enabled ? "끄기" : "켜기"}
+                          </p>
+                        </div>
                       </TooltipContent>
                     </Tooltip>
                     <div className="w-px h-5 bg-border" />
@@ -698,6 +711,32 @@ export default function ReposPage() {
         title="저장소 삭제"
         description="이 저장소를 삭제하시겠습니까? 관련 커밋 데이터와 클론된 파일이 함께 삭제됩니다."
         onConfirm={handleDeleteConfirm}
+      />
+
+      <ConfirmDialog
+        open={toggleTarget !== null}
+        onOpenChange={(open) => { if (!open) setToggleTarget(null); }}
+        title={toggleTarget?.nextActive ? "자동 일간 보고서 켜기" : "자동 일간 보고서 끄기"}
+        description={
+          toggleTarget?.nextActive ? (
+            <span className="space-y-2 block">
+              <span className="block">
+                매일 <span className="font-medium text-foreground">오전 9시</span>에 전날 커밋을 분석하여 업무 보고서를 자동으로 생성합니다.
+              </span>
+              <span className="block">생성된 보고서는 보고서 목록에서 확인·수정할 수 있습니다.</span>
+              <span className="block">활성화하시겠습니까?</span>
+            </span>
+          ) : (
+            <span className="space-y-2 block">
+              <span className="block">이 저장소의 자동 보고서 생성이 중단됩니다.</span>
+              <span className="block">이미 생성된 보고서는 삭제되지 않습니다. 필요할 때 언제든 다시 켤 수 있습니다.</span>
+              <span className="block">비활성화하시겠습니까?</span>
+            </span>
+          )
+        }
+        confirmLabel={toggleTarget?.nextActive ? "켜기" : "끄기"}
+        variant="default"
+        onConfirm={handleToggleConfirm}
       />
     </div>
   );

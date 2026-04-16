@@ -15,8 +15,9 @@ interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
+  description: React.ReactNode;
   confirmLabel?: string;
+  variant?: "default" | "destructive";
   onConfirm: () => void;
 }
 
@@ -26,6 +27,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = "삭제",
+  variant = "destructive",
   onConfirm,
 }: ConfirmDialogProps) {
   return (
@@ -33,12 +35,14 @@ export function ConfirmDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
+          <AlertDialogDescription render={<div />}>
+            {description}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>취소</AlertDialogCancel>
           <AlertDialogAction
-            variant="destructive"
+            variant={variant}
             onClick={() => {
               onConfirm();
               onOpenChange(false);
