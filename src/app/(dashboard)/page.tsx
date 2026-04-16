@@ -11,6 +11,9 @@ import { repoColor } from "@/lib/color-hash";
 import { ContributionHeatmap } from "@/components/data-display/contribution-heatmap";
 import { DotIdenticon } from "@/components/data-display/dot-identicon";
 import { LanguageBadge } from "@/components/data-display/language-badge";
+import { GrowthTree } from "@/components/growth-tree/growth-tree";
+import { calcStreak, calcInactiveDays } from "@/components/growth-tree/hooks/use-tree-metrics";
+import type { TreeMetrics } from "@/core/types";
 import { RefreshCw } from "lucide-react";
 
 function parseUTC(value: string): Date {
@@ -121,6 +124,8 @@ interface DashboardStats {
   weekCommits: number;
   totalReports: number;
   repoCount: number;
+  totalCommits: number;
+  maxDailyCommits: number;
 }
 
 export default function DashboardPage() {
@@ -128,7 +133,14 @@ export default function DashboardPage() {
   const userName = session?.user?.name;
   const [repos, setRepos] = useState<any[]>([]);
   const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
-  const [stats, setStats] = useState<DashboardStats>({ todayCommits: 0, weekCommits: 0, totalReports: 0, repoCount: 0 });
+  const [stats, setStats] = useState<DashboardStats>({
+    todayCommits: 0,
+    weekCommits: 0,
+    totalReports: 0,
+    repoCount: 0,
+    totalCommits: 0,
+    maxDailyCommits: 0,
+  });
   const [syncing, setSyncing] = useState(false);
   const [syncingRepoId, setSyncingRepoId] = useState<number | null>(null);
   const [heatmapData, setHeatmapData] = useState<Record<string, number>>({});
@@ -145,11 +157,35 @@ export default function DashboardPage() {
 
   useEffect(() => {
     refreshData().finally(() => setInitialLoading(false));
-    const onVisible = () => {
-      if (document.visibilityState === "visible") refreshData();
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => {
+      if (intervalId) return;
+      intervalId = setInterval(refreshData, 60_000);
     };
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshData();
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+
+    if (document.visibilityState === "visible") startPolling();
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [refreshData]);
 
   const handleSync = async () => {
@@ -194,6 +230,15 @@ export default function DashboardPage() {
 
   const scheduler = getSchedulerState(schedulerStatus);
   const styles = schedulerStateStyles[scheduler.state];
+
+  const treeMetrics: TreeMetrics = {
+    totalCommits: stats.totalCommits,
+    currentStreak: calcStreak(heatmapData),
+    inactiveDays: calcInactiveDays(heatmapData),
+    todayCommitted: stats.todayCommits > 0,
+    maxDailyCommits: stats.maxDailyCommits,
+    repos: repos.map((r: any) => ({ id: r.id, language: r.primary_language })),
+  };
 
   if (initialLoading) {
     return (
@@ -247,8 +292,9 @@ export default function DashboardPage() {
         <StatCard label="등록 저장소" value={stats.repoCount} />
       </div>
 
-      <div className="mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4 mb-6">
         <ContributionHeatmap data={heatmapData} months={6} />
+        <GrowthTree metrics={treeMetrics} />
       </div>
 
       <Card>
