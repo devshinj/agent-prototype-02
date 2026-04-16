@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { TreeMetrics } from "@/core/types";
 import { palette, desaturate, type PaletteKey } from "./palette";
 import {
@@ -32,14 +32,15 @@ const POT_Y = 104;
 const CHARACTER_X = 80;
 const CHARACTER_Y = 100;
 
-function resolveColor(cell: SpriteCell, leafDesatPercent: number): string | null {
+type LeafColors = { leafDark: string; leafMid: string; leafLight: string } | null;
+
+function resolveColor(cell: SpriteCell, leafOverride: LeafColors): string | null {
   if (cell === "_") return null;
-  const base = palette[cell as PaletteKey];
-  if (!base) return null;
-  if (leafDesatPercent > 0 && (cell === "leafDark" || cell === "leafMid" || cell === "leafLight")) {
-    return desaturate(base, leafDesatPercent);
+  if (leafOverride && (cell === "leafDark" || cell === "leafMid" || cell === "leafLight")) {
+    return leafOverride[cell];
   }
-  return base;
+  const base = palette[cell as PaletteKey];
+  return base ?? null;
 }
 
 function drawSprite(
@@ -47,11 +48,11 @@ function drawSprite(
   sprite: Sprite,
   x: number,
   y: number,
-  leafDesatPercent = 0
+  leafOverride: LeafColors = null
 ): void {
   for (let sy = 0; sy < sprite.length; sy++) {
     for (let sx = 0; sx < sprite[sy].length; sx++) {
-      const color = resolveColor(sprite[sy][sx], leafDesatPercent);
+      const color = resolveColor(sprite[sy][sx], leafOverride);
       if (color) {
         ctx.fillStyle = color;
         ctx.fillRect(x + sx, y + sy, 1, 1);
@@ -169,7 +170,9 @@ interface TreeCanvasProps {
 export function TreeCanvas({ metrics }: TreeCanvasProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const metricsRef = useRef(metrics);
-  metricsRef.current = metrics;
+  useLayoutEffect(() => {
+    metricsRef.current = metrics;
+  });
 
   // Canvas 초기화 (devicePixelRatio 대응)
   useEffect(() => {
@@ -208,6 +211,13 @@ export function TreeCanvas({ metrics }: TreeCanvasProps): React.JSX.Element {
     const desat = leafDesaturationFromInactive(m.inactiveDays);
     const fireflies = fireflyCountFromStreak(m.currentStreak);
 
+    // 잎 desaturate 색을 프레임당 1번만 계산
+    const leafOverride: LeafColors = desat > 0 ? {
+      leafDark: desaturate(palette.leafDark, desat),
+      leafMid: desaturate(palette.leafMid, desat),
+      leafLight: desaturate(palette.leafLight, desat),
+    } : null;
+
     // 바람 흔들림 (전체 나무)
     const windShift = Math.sin(time / 2000) * 0.7;
 
@@ -215,7 +225,7 @@ export function TreeCanvas({ metrics }: TreeCanvasProps): React.JSX.Element {
     drawSprite(ctx, emptyPot, POT_X - 4, POT_Y + 8);
 
     // 2. 나무
-    drawSprite(ctx, stage.sprite, TREE_X + windShift, TREE_Y, desat);
+    drawSprite(ctx, stage.sprite, TREE_X + windShift, TREE_Y, leafOverride);
 
     // 3. 줄기 두께 오버레이
     drawTrunkOverlay(ctx, stage, thickness, TREE_X + windShift, TREE_Y);
