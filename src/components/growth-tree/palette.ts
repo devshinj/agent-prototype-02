@@ -78,14 +78,17 @@ function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: n
 }
 
 /**
- * 색의 채도를 percent만큼 감소시킨다. percent 0 = 원본, percent 1 = 무채색.
- * 명도는 유지된다.
+ * 색의 채도를 amount 비율만큼 감소시킨다.
+ * @param hex 6자리 hex 색상 문자열 ("#rrggbb"). 형식이 다르면 원본 반환.
+ * @param amount 감소 비율 (0 = 원본 유지, 1 = 완전 무채색). 음수/초과값은 각각 0/1로 간주.
+ * @returns 채도만 감소된 새 hex 문자열. 명도(L)는 유지된다.
  */
-export function desaturate(hex: string, percent: number): string {
-  if (percent <= 0) return hex;
+export function desaturate(hex: string, amount: number): string {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  if (amount <= 0) return hex;
   const { r, g, b } = hexToRgb(hex);
   const { h, s, l } = rgbToHsl(r, g, b);
-  const newS = Math.max(0, s * (1 - percent));
+  const newS = Math.max(0, s * (1 - amount));
   const { r: nr, g: ng, b: nb } = hslToRgb(h, newS, l);
   return rgbToHex(nr, ng, nb);
 }
