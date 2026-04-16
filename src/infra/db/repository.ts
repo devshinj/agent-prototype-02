@@ -182,6 +182,7 @@ export function getRepositoriesWithLastCommit(db: Database.Database, userId: str
       FROM sync_logs WHERE user_id = ?
     ) sl ON sl.repository_id = r.id AND sl.rn = 1
     WHERE r.user_id = ? AND r.is_active = 1
+    ORDER BY r.created_at DESC
   `).all(userId, userId) as any[];
 }
 
