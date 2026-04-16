@@ -98,6 +98,24 @@ export function toggleRepository(db: Database.Database, id: number, isActive: bo
   ).run(isActive ? 1 : 0, id);
 }
 
+export function updateAutoReportEnabled(
+  db: Database.Database,
+  id: number,
+  userId: string,
+  enabled: boolean
+): boolean {
+  const result = db.prepare(
+    "UPDATE repositories SET auto_report_enabled = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?"
+  ).run(enabled ? 1 : 0, id, userId);
+  return result.changes > 0;
+}
+
+export function getAutoReportEnabledRepos(db: Database.Database) {
+  return db.prepare(
+    "SELECT * FROM repositories WHERE auto_report_enabled = 1 AND clone_path IS NOT NULL"
+  ).all() as any[];
+}
+
 export function insertSyncLog(db: Database.Database, input: InsertSyncLogInput): void {
   db.prepare(
     "INSERT INTO sync_logs (repository_id, status, commits_processed, tasks_created, error_message, completed_at) VALUES (?, ?, ?, ?, ?, datetime('now'))"
@@ -414,6 +432,8 @@ export interface DashboardStats {
   weekCommits: number;
   totalReports: number;
   repoCount: number;
+  totalCommits: number;
+  maxDailyCommits: number;
 }
 
 export function getDashboardStats(db: Database.Database, userId: string): DashboardStats {
@@ -448,10 +468,41 @@ export function getDashboardStats(db: Database.Database, userId: string): Dashbo
     "SELECT COUNT(*) as cnt FROM reports WHERE user_id = ?"
   ).get(userId) as { cnt: number };
 
+  let totalCommits = 0;
+  let maxDailyCommits = 0;
+
+  if (repoIds.length > 0) {
+    const placeholders = repoIds.map(() => "?").join(",");
+    const params: (string | number)[] = [...repoIds];
+
+    let authorClause = "";
+    if (authorsParam && authorsParam.length > 0) {
+      authorClause = " AND (" + authorsParam.map(() => "author LIKE ?").join(" OR ") + ")";
+      params.push(...authorsParam.map((a) => `%${a}%`));
+    }
+
+    const totalRow = db.prepare(
+      `SELECT COUNT(*) as cnt FROM commit_cache
+       WHERE repository_id IN (${placeholders})${authorClause}`
+    ).get(...params) as { cnt: number };
+    totalCommits = totalRow.cnt;
+
+    const maxRow = db.prepare(
+      `SELECT MAX(daily_count) as max_count FROM (
+         SELECT committed_date, COUNT(*) as daily_count FROM commit_cache
+         WHERE repository_id IN (${placeholders})${authorClause}
+         GROUP BY committed_date
+       )`
+    ).get(...params) as { max_count: number | null };
+    maxDailyCommits = maxRow.max_count ?? 0;
+  }
+
   return {
     todayCommits,
     weekCommits,
     totalReports: reportRow.cnt,
     repoCount: repos.length,
+    totalCommits,
+    maxDailyCommits,
   };
 }
