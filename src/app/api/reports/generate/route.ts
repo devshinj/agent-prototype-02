@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
           const prompt = buildPrompt(repo.owner, repo.repo, repo.label, dateLabel, allCommits, isRange);
           const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
           const result = await genai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-2.5-flash-lite",
             contents: prompt,
           });
           const parsed = parseGeneratedReport(result.text ?? "", displayName);
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
 
     const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
     const result = await genai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-flash-lite",
       contents: prompt,
     });
 

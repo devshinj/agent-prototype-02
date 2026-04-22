@@ -101,7 +101,7 @@ export async function analyzeCommits(
 
   const result = await withRetry(() =>
     genai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-flash-lite",
       contents: prompt,
     })
   );
@@ -129,7 +129,7 @@ ${diff.slice(0, 3000)}
 
   const result = await withRetry(() =>
     genai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-flash-lite",
       contents: prompt,
     })
   );

@@ -174,7 +174,7 @@ export async function generateReportContent(
 
   const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
   const result = await genai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: "gemini-2.5-flash-lite",
     contents: prompt,
   });
 
