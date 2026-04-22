@@ -124,11 +124,14 @@ export function ContributionHeatmap({ data, months = 6 }: ContributionHeatmapPro
   const streak = useMemo(() => calcStreak(data), [data]);
   const busiest = useMemo(() => calcBusiestDay(data), [data]);
 
-  const labelWidth = 28;
-  const monthLabelHeight = 18;
-  const gap = 3;
+  const compact = containerWidth > 0 && containerWidth < 520;
+  const labelWidth = compact ? 22 : 28;
+  const monthLabelHeight = compact ? 14 : 18;
+  const gap = compact ? 2 : 3;
+  const cellMin = compact ? 8 : 10;
+  const cellMax = compact ? 12 : 14;
   const availableWidth = containerWidth > 0 ? containerWidth - labelWidth : 600;
-  const cellSize = Math.max(10, Math.min(14, Math.floor((availableWidth - gap * (weeks.length - 1)) / weeks.length)));
+  const cellSize = Math.max(cellMin, Math.min(cellMax, Math.floor((availableWidth - gap * (weeks.length - 1)) / weeks.length)));
   const svgWidth = labelWidth + weeks.length * (cellSize + gap);
   const svgHeight = monthLabelHeight + 7 * (cellSize + gap);
 
@@ -142,40 +145,48 @@ export function ContributionHeatmap({ data, months = 6 }: ContributionHeatmapPro
     setHoveredCell(null);
   }, []);
 
+  const iconBox = compact ? "w-7 h-7" : "w-8 h-8";
+  const iconSize = compact ? "h-3.5 w-3.5" : "h-4 w-4";
+  const statValue = compact ? "text-base" : "text-lg";
+  const statLabel = compact ? "text-[10px]" : "text-[11px]";
+  const rowGap = compact ? "gap-3" : "gap-6";
+  const dividerHeight = compact ? "h-7" : "h-8";
+  const cardPadding = compact ? "pt-4 pb-3 px-4" : "pt-5 pb-4 px-5";
+
   return (
     <Card className="overflow-hidden">
-      <CardContent className="pt-5 pb-4 px-5">
+      <CardContent className={cardPadding}>
         {/* Stats row */}
-        <div className="flex items-center gap-6 mb-4">
+        <div className={`flex items-center ${rowGap} mb-4`}>
           <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-              <GitCommit className="h-4 w-4 text-primary" />
+            <div className={`flex items-center justify-center ${iconBox} rounded-lg bg-primary/10`}>
+              <GitCommit className={`${iconSize} text-primary`} />
             </div>
             <div>
-              <p className="text-lg font-bold leading-none">{totalCommits.toLocaleString()}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">총 커밋</p>
+              <p className={`${statValue} font-bold leading-none`}>{totalCommits.toLocaleString()}</p>
+              <p className={`${statLabel} text-muted-foreground mt-0.5`}>총 커밋</p>
             </div>
           </div>
-          <div className="w-px h-8 bg-border" />
+          <div className={`w-px ${dividerHeight} bg-border`} />
           <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/10">
-              <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className={`flex items-center justify-center ${iconBox} rounded-lg bg-emerald-500/10`}>
+              <TrendingUp className={`${iconSize} text-emerald-600 dark:text-emerald-400`} />
             </div>
             <div>
-              <p className="text-lg font-bold leading-none">{activeDays}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">활동일</p>
+              <p className={`${statValue} font-bold leading-none`}>{activeDays}</p>
+              <p className={`${statLabel} text-muted-foreground mt-0.5`}>활동일</p>
             </div>
           </div>
           {streak > 0 && (
             <>
-              <div className="w-px h-8 bg-border" />
+              <div className={`w-px ${dividerHeight} bg-border`} />
               <div className="flex items-center gap-2">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-500/10">
-                  <Flame className="h-4 w-4 text-orange-500" />
+                <div className={`flex items-center justify-center ${iconBox} rounded-lg bg-orange-500/10`}>
+                  <Flame className={`${iconSize} text-orange-500`} />
                 </div>
                 <div>
-                  <p className="text-lg font-bold leading-none">{streak}일</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">연속 커밋</p>
+                  <p className={`${statValue} font-bold leading-none`}>{streak}일</p>
+                  <p className={`${statLabel} text-muted-foreground mt-0.5`}>연속 커밋</p>
                 </div>
               </div>
             </>
@@ -206,9 +217,9 @@ export function ContributionHeatmap({ data, months = 6 }: ContributionHeatmapPro
                   <text
                     key={idx}
                     x={labelWidth + m.weekIndex * (cellSize + gap)}
-                    y={12}
+                    y={compact ? 10 : 12}
                     className="fill-muted-foreground"
-                    fontSize={10}
+                    fontSize={compact ? 9 : 10}
                     fontWeight={500}
                     fontFamily="system-ui, sans-serif"
                   >
@@ -220,10 +231,10 @@ export function ContributionHeatmap({ data, months = 6 }: ContributionHeatmapPro
                 {dayLabels.map(([dayIdx, label]) => (
                   <text
                     key={dayIdx}
-                    x={labelWidth - 5}
+                    x={labelWidth - (compact ? 4 : 5)}
                     y={monthLabelHeight + dayIdx * (cellSize + gap) + cellSize - 2}
                     className="fill-muted-foreground/70"
-                    fontSize={9}
+                    fontSize={compact ? 8 : 9}
                     fontFamily="system-ui, sans-serif"
                     textAnchor="end"
                   >
