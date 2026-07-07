@@ -259,6 +259,19 @@ ${repoSections}
 - 변경량: +85 / -20`;
 }
 
+function normalizeMarkdown(text: string): string {
+  return text
+    // ## / ### 헤딩 앞에 빈 줄 보장
+    .replace(/([^\n])\n(#{2,3} )/g, "$1\n\n$2")
+    // --- 구분선 앞뒤 빈 줄 보장
+    .replace(/([^\n])\n(---)/g, "$1\n\n$2")
+    .replace(/(---)\n([^\n])/g, "$1\n\n$2")
+    // > blockquote 앞 빈 줄 보장
+    .replace(/([^\n])\n(> )/g, "$1\n\n$2")
+    // 연속 빈 줄은 2개로 제한
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 export function parseHrmsTaskResponse(text: string): { title: string; description: string } {
   // LLM이 응답 전체를 코드 펜스로 감싸는 경우 제거
   let cleaned = text.trim();
@@ -278,7 +291,8 @@ export function parseHrmsTaskResponse(text: string): { title: string; descriptio
     }
   }
 
-  return { title, description: lines.slice(contentStartIndex).join("\n").trim() };
+  const raw = lines.slice(contentStartIndex).join("\n").trim();
+  return { title, description: normalizeMarkdown(raw) };
 }
 
 export async function generateHrmsTaskContent(
@@ -348,22 +362,81 @@ ${proposalLines ? `\n[변경 제안 ${proposals.length}건]\n${proposalLines}` :
 
 출력 형식:
 첫 줄은 반드시 "TITLE: " 로 시작하는 업무 제목 (핵심 작업을 20자 이내로 요약, 프로젝트명·날짜 포함 금지)
-다음 줄부터 업무 상세 내용
+빈 줄 후 아래 마크다운 구조를 정확히 따라주세요:
+
+## 📋 업무 요약
+
+> - (당일 설계 활동 핵심을 불릿으로 나열, 2~3줄)
+
+---
+
+## 📐 설계 산출물 변경 내용
+
+### 1. (목적 기반 카테고리 제목)
+
+- (수행 항목)
+- (수행 항목)
+- 관련 산출물: FEAT 3건, ADR 1건
+
+### 2. (목적 기반 카테고리 제목)
+
+- (수행 항목)
+- 관련 산출물: API 5건, ERD 1건
+
+---
+
+## 📝 결정 사항
+
+- (ADR·변경 제안 중 주요 결정이 있으면 불릿으로 기재. 없으면 이 섹션 생략)
 
 작성 규칙:
-- 같은 목적의 작업은 하나의 항목으로 묶어서 "무엇을 왜 했는지" 중심으로 기술
+- 📋 업무 요약은 당일 설계 활동 전체를 관통하는 핵심을 blockquote 안 불릿(> -)으로 2~3줄
+- 📐 설계 산출물 변경 내용은 같은 목적의 ITEM을 묶어 번호 매긴 카테고리로 정리, 2~5개가 적절
+- 카테고리는 ITEM 타입(FEAT, ADR 등)으로 나누지 말고, 업무 목적(예: "포털 핵심 기능 설계", "인프라 배포 전략 수립")으로 묶을 것
+- 각 카테고리 끝에 "관련 산출물: {타입} N건, ..." 표기 (해당 카테고리에 속한 ITEM 타입별 건수)
 - change_summary가 있으면 그 내용을 반영하여 구체적으로 작성
 - ID를 일일이 나열하지 말고, 대표 ID 1~2개만 언급하고 나머지는 "외 N건" 처리
-- 본문 첫 줄에 "프로젝트: ${logicraftProjectName}" 을 명시
-- 각 항목은 "- " 로 시작하는 개조식, 3~6개 항목이 적절
-- 한국어, 텍스트만 응답 (JSON/마크다운 코드블록 불필요)
+- 📝 결정 사항은 ADR 채택·변경 제안 반영 등 의사결정이 있을 때만 기재. 단순 수정·보완은 제외
+- 문체: 간결한 개조식, 명사형·체언 종결 선호 (예: "API 설계", "도메인 분리")
+- "~했습니다/~됩니다" 존댓말, "~하였으며/~하고" 연결형 서술 금지
+- 한국어, 마크다운으로 응답 (JSON/코드블록 불필요)
+- 위 출력 형식의 괄호 안 지시문은 실제 내용으로 대체. 지시문 자체를 출력하지 말 것
+- 섹션 구조와 이모지 헤더를 그대로 사용할 것
 
-나쁜 예 (ID 나열):
-- FEAT-001, FEAT-002, FEAT-003, FEAT-004 Feature를 v2로 업데이트했습니다.
+나쁜 예 (ITEM 타입별 분리):
+### 1. Feature 등록
+- FEAT-001, FEAT-002, FEAT-003 등록
 
-좋은 예 (의미 중심):
-- 영상 관리 도메인 Feature 4건(FEAT-001 외 3건) 상세 설계: 업로드 워크플로·메타데이터 검증·배치 처리 흐름 구체화
-- CCTV 자원 관리 API 12건(API-050 외 11건) 엔드포인트 설계: 요청/응답 스키마·인증·에러 코드 정의`;
+### 2. ADR 등록
+- ADR-001 등록
+
+좋은 예 (목적 기반 통합):
+## 📋 업무 요약
+
+> - 포털 핵심 기능 15건 상세 설계 및 관련 요구사항·ADR 근거 기재
+> - 모듈러 모놀리스 아키텍처 전환 결정, 정부클라우드 이중화 배포 전략 수용
+
+---
+
+## 📐 설계 산출물 변경 내용
+
+### 1. 포털 핵심 기능 상세 설계
+
+- 사용자 중심 기능(FEAT-005 외 14건) 상세 내용과 관련 요구사항·ADR 근거 기재
+- 공통 UI 컴포넌트(FEAT-001) 레이아웃·접근성 기준 구체화
+- 관련 산출물: FEAT 15건
+
+### 2. 아키텍처 및 인프라 재결정
+
+- 모듈러 모놀리스 아키텍처(ADR-002) 전환 결정
+- 정부클라우드 S존 이중화 배포 전략(ADR-003, INFRA-001) 수용
+- 관련 산출물: ADR 2건, INFRA 1건
+
+---
+
+## 📝 결정 사항
+
+- 모듈러 모놀리스 아키텍처 전환 확정(ADR-002): 마이크로서비스 대비 운영 복잡도 감소 우선`;
 }
 
 export async function generateLogicraftTaskContent(
