@@ -129,3 +129,56 @@
     @apply font-sans;
   }
 }
+
+/* ── Briefing prose: 활동 브리핑 본문 스타일 ── */
+.briefing-prose {
+  @apply text-sm text-muted-foreground leading-relaxed;
+  padding-left: 0.875rem;
+  border-left: 2px solid oklch(0.72 0.14 195 / 0.2);
+}
+
+.briefing-prose ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.briefing-prose li {
+  position: relative;
+  padding-left: 1rem;
+  line-height: 1.6;
+}
+
+.briefing-prose li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: oklch(0.72 0.14 195 / 0.5);
+}
+
+.briefing-prose p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.briefing-prose p + p {
+  margin-top: 0.375rem;
+}
+
+.briefing-prose strong {
+  @apply text-foreground font-medium;
+}
+
+.briefing-prose code {
+  @apply text-primary/80 text-xs;
+  padding: 0.1em 0.3em;
+  border-radius: 0.25rem;
+  background: oklch(0.72 0.14 195 / 0.08);
+}
