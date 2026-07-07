@@ -166,6 +166,11 @@ export async function insertRepositoryForUser(input: InsertRepoForUserInput): Pr
   await sql`
     INSERT INTO repositories (owner, repo, branch, user_id, clone_url, credential_id)
     VALUES (${input.owner}, ${input.repo}, ${input.branch}, ${input.userId}, ${input.cloneUrl}, ${input.credentialId ?? null})
+    ON CONFLICT (user_id, clone_url) DO UPDATE SET
+      branch = EXCLUDED.branch,
+      credential_id = EXCLUDED.credential_id,
+      is_active = true,
+      updated_at = NOW()
   `;
 }
 

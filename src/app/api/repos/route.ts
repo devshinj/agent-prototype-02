@@ -142,6 +142,9 @@ async function registerSingleRepo(
     return { success: true, cloneUrl };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("repositories_user_id_clone_url_key")) {
+      return { success: false, error: "이미 등록된 저장소입니다", cloneUrl };
+    }
     return { success: false, error: msg, cloneUrl };
   }
 }
