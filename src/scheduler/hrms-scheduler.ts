@@ -1,9 +1,10 @@
 import cron, { type ScheduledTask } from "node-cron";
-import { getKstYesterday, kstCronOptions } from "@/core/date-utils";
+import { getKstYesterday, getKstToday, toKstDateString, kstCronOptions } from "@/core/date-utils";
 import {
   getAutoRegisterMappings,
   getMappingById,
   hasSuccessLog,
+  hasAutoLog,
   getLastSuccessLog,
   insertTaskLog,
 } from "@/infra/db/hrms";
@@ -252,6 +253,48 @@ export async function startHrmsScheduler(): Promise<void> {
   }
 
   console.log(`[HrmsScheduler] Started — ${mappings.length} repo + ${lcMappings.length} LogiCraft auto-register jobs`);
+
+  await recoverMissedExecutions();
+}
+
+async function recoverMissedExecutions(): Promise<void> {
+  const yesterday = getYesterdayDate();
+  const today = getKstToday();
+  let recovered = 0;
+
+  for (const [mappingId, task] of jobs) {
+    try {
+      const nextRun = (task as any).getNextRun?.() as Date | null;
+      if (nextRun && toKstDateString(nextRun) <= today) continue;
+
+      if (await hasAutoLog(mappingId, yesterday)) continue;
+
+      console.log(`[HrmsScheduler] Recovering missed execution: mapping=${mappingId}, date=${yesterday}`);
+      await executeRegistration(mappingId);
+      recovered++;
+    } catch (err) {
+      console.error(`[HrmsScheduler] Recovery failed: mapping=${mappingId}`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  for (const [mappingId, task] of logicraftJobs) {
+    try {
+      const nextRun = (task as any).getNextRun?.() as Date | null;
+      if (nextRun && toKstDateString(nextRun) <= today) continue;
+
+      if (await hasLogicraftSuccessLog(mappingId, yesterday)) continue;
+
+      console.log(`[HrmsScheduler] Recovering missed LogiCraft execution: mapping=${mappingId}, date=${yesterday}`);
+      await executeLogicraftRegistration(mappingId);
+      recovered++;
+    } catch (err) {
+      console.error(`[HrmsScheduler] Recovery failed: logicraft mapping=${mappingId}`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  if (recovered > 0) {
+    console.log(`[HrmsScheduler] Recovery complete — ${recovered} execution(s) recovered`);
+  }
 }
 
 export function stopHrmsScheduler(): void {

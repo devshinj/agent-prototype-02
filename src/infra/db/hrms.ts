@@ -272,6 +272,17 @@ export async function hasSuccessLog(mappingId: number, targetDate: string): Prom
   return !!row;
 }
 
+/** 특정 매핑·날짜에 자동 트리거 로그(success 또는 skipped)가 있는지 확인 */
+export async function hasAutoLog(mappingId: number, targetDate: string): Promise<boolean> {
+  const [row] = await sql`
+    SELECT 1 FROM hrms_task_logs
+    WHERE mapping_id = ${mappingId} AND target_date = ${targetDate}
+    AND trigger_type = 'auto' AND status IN ('success', 'skipped')
+    LIMIT 1
+  `;
+  return !!row;
+}
+
 export async function getLastSuccessLog(mappingId: number, targetDate: string): Promise<{ hrms_task_id: number | null } | null> {
   const [row] = await sql`
     SELECT hrms_task_id FROM hrms_task_logs WHERE mapping_id = ${mappingId} AND target_date = ${targetDate} AND status = 'success' ORDER BY created_at DESC LIMIT 1

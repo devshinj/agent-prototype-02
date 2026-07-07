@@ -11,7 +11,9 @@ export async function register() {
     const { startFeedScheduler } = await import("@/scheduler/feed-scheduler");
     startScheduler(15);
     startReportScheduler();
-    await startHrmsScheduler();
+    await startHrmsScheduler().catch((err) => {
+      console.error("[Instrumentation] HRMS scheduler failed:", err instanceof Error ? err.message : err);
+    });
     startFeedScheduler();
   }
 }
