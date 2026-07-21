@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       hrmsProjectId,
       hrmsProjectName: project.name,
       autoRegister: autoRegister ?? false,
-      cronTime: cronTime ?? "0 9 * * 1-5",
+      cronTime: cronTime ?? "0 9 * * *",
       repositoryIds,
     });
 

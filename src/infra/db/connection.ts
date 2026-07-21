@@ -144,7 +144,7 @@ async function createTables(): Promise<void> {
       hrms_project_id INTEGER NOT NULL,
       hrms_project_name TEXT NOT NULL,
       auto_register BOOLEAN NOT NULL DEFAULT false,
-      cron_time TEXT NOT NULL DEFAULT '0 9 * * 1-5',
+      cron_time TEXT NOT NULL DEFAULT '0 9 * * *',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(user_id, hrms_project_id)
@@ -193,7 +193,7 @@ async function createTables(): Promise<void> {
       logicraft_project_id TEXT NOT NULL,
       logicraft_project_name TEXT NOT NULL,
       auto_register BOOLEAN NOT NULL DEFAULT false,
-      cron_time TEXT NOT NULL DEFAULT '0 9 * * 1-5',
+      cron_time TEXT NOT NULL DEFAULT '0 9 * * *',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(user_id, logicraft_project_id)
@@ -296,6 +296,12 @@ async function createTables(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_feed_entries_user_created ON feed_entries(user_id, created_at DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_rss_commits_repo_sha ON rss_commits(repository_id, sha)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_rss_commits_feed_entry ON rss_commits(feed_entry_id)`;
+
+  // Migration: cron_time 평일만 → 매일로 변경 (금요일 업무 누락 버그 수정)
+  await sql`UPDATE hrms_project_mappings SET cron_time = REPLACE(cron_time, '1-5', '*') WHERE cron_time LIKE '%1-5'`;
+  await sql`UPDATE hrms_logicraft_mappings SET cron_time = REPLACE(cron_time, '1-5', '*') WHERE cron_time LIKE '%1-5'`;
+  await sql`ALTER TABLE hrms_project_mappings ALTER COLUMN cron_time SET DEFAULT '0 9 * * *'`;
+  await sql`ALTER TABLE hrms_logicraft_mappings ALTER COLUMN cron_time SET DEFAULT '0 9 * * *'`;
 
   // Migration: feed_entries scope_type에 'logicraft' 추가
   const [constraint] = await sql`

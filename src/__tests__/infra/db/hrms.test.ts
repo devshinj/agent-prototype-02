@@ -98,7 +98,7 @@ describe("hrms_project_mappings", () => {
       hrmsProjectId: 93,
       hrmsProjectName: "CUVIA",
       autoRegister: true,
-      cronTime: "0 9 * * 1-5",
+      cronTime: "0 9 * * *",
       repositoryIds: repos.map((r: any) => r.id),
     });
 
@@ -117,7 +117,7 @@ describe("hrms_project_mappings", () => {
       hrmsProjectId: 93,
       hrmsProjectName: "CUVIA",
       autoRegister: false,
-      cronTime: "0 9 * * 1-5",
+      cronTime: "0 9 * * *",
       repositoryIds: repos.map((r: any) => r.id),
     });
 
@@ -137,7 +137,7 @@ describe("hrms_project_mappings", () => {
       hrmsProjectId: 93,
       hrmsProjectName: "CUVIA",
       autoRegister: false,
-      cronTime: "0 9 * * 1-5",
+      cronTime: "0 9 * * *",
       repositoryIds: [repos[0].id],
     });
 
@@ -158,7 +158,7 @@ describe("hrms_task_logs", () => {
       hrmsProjectId: 93,
       hrmsProjectName: "CUVIA",
       autoRegister: false,
-      cronTime: "0 9 * * 1-5",
+      cronTime: "0 9 * * *",
       repositoryIds: [repo.id],
     });
     return mappingId;

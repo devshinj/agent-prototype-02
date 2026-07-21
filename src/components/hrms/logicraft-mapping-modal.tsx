@@ -56,7 +56,7 @@ export function LogicraftMappingModal({ open, onClose, onSave, editing }: Logicr
       setSelectedHrmsId(String(editing.hrms_project_id));
       setSelectedLogicraftId(editing.logicraft_project_id);
       setAutoRegister(!!editing.auto_register);
-      const timeParts = (editing.cron_time || "0 9 * * 1-5").split(" ");
+      const timeParts = (editing.cron_time || "0 9 * * *").split(" ");
       setCronTime(`${timeParts[1]?.padStart(2, "0")}:${timeParts[0]?.padStart(2, "0")}`);
     } else if (!editing) {
       setSelectedLogicraftId("");
@@ -148,7 +148,7 @@ export function LogicraftMappingModal({ open, onClose, onSave, editing }: Logicr
     const hrmsProject = hrmsProjects.find((p: any) => String(p.id) === selectedHrmsId);
 
     const [hour, minute] = cronTime.split(":").map(Number);
-    const cronExpr = `${minute} ${hour} * * 1-5`;
+    const cronExpr = `${minute} ${hour} * * *`;
 
     const payload = {
       hrmsProjectId: parseInt(selectedHrmsId, 10),

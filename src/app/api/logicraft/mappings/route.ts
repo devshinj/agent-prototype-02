@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       logicraftProjectId,
       logicraftProjectName: logicraftProjectName ?? "",
       autoRegister: autoRegister ?? false,
-      cronTime: cronTime ?? "0 9 * * 1-5",
+      cronTime: cronTime ?? "0 9 * * *",
     });
 
     if (autoRegister) {

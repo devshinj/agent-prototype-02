@@ -50,7 +50,7 @@ export function MappingModal({ open, onClose, onSave, editing }: MappingModalPro
       setSelectedProjectId(String(editing.hrms_project_id));
       setSelectedRepoIds(editing.repos.map((r: any) => r.id));
       setAutoRegister(!!editing.auto_register);
-      const timeParts = (editing.cron_time || "0 9 * * 1-5").split(" ");
+      const timeParts = (editing.cron_time || "0 9 * * *").split(" ");
       setCronTime(`${timeParts[1]?.padStart(2, "0")}:${timeParts[0]?.padStart(2, "0")}`);
     } else {
       setSelectedProjectId("");
@@ -76,7 +76,7 @@ export function MappingModal({ open, onClose, onSave, editing }: MappingModalPro
     setError(null);
 
     const [hour, minute] = cronTime.split(":").map(Number);
-    const cronExpr = `${minute} ${hour} * * 1-5`;
+    const cronExpr = `${minute} ${hour} * * *`;
 
     const payload = {
       hrmsProjectId: parseInt(selectedProjectId, 10),

@@ -222,7 +222,7 @@ export function refreshJob(mappingId: number): void {
     const mapping = await getMappingById(mappingId);
     if (!mapping || !mapping.auto_register) return;
 
-    const cronExpr = mapping.cron_time || "0 9 * * 1-5";
+    const cronExpr = mapping.cron_time || "0 9 * * *";
     const task = cron.schedule(cronExpr, () => {
       executeRegistration(mappingId).catch(console.error);
     }, kstCronOptions);
@@ -235,7 +235,7 @@ export async function startHrmsScheduler(): Promise<void> {
   const mappings = await getAutoRegisterMappings();
 
   for (const m of mappings) {
-    const cronExpr = m.cron_time || "0 9 * * 1-5";
+    const cronExpr = m.cron_time || "0 9 * * *";
     const task = cron.schedule(cronExpr, () => {
       executeRegistration(m.id).catch(console.error);
     }, kstCronOptions);
@@ -245,7 +245,7 @@ export async function startHrmsScheduler(): Promise<void> {
   // LogiCraft 자동 등록 매핑
   const lcMappings = await getAutoRegisterLogicraftMappings();
   for (const m of lcMappings) {
-    const cronExpr = m.cron_time || "0 9 * * 1-5";
+    const cronExpr = m.cron_time || "0 9 * * *";
     const task = cron.schedule(cronExpr, () => {
       executeLogicraftRegistration(m.id).catch(console.error);
     }, kstCronOptions);
@@ -432,7 +432,7 @@ export function refreshLogicraftJob(mappingId: number): void {
     const mapping = await getLogicraftMappingById(mappingId);
     if (!mapping || !mapping.auto_register) return;
 
-    const cronExpr = mapping.cron_time || "0 9 * * 1-5";
+    const cronExpr = mapping.cron_time || "0 9 * * *";
     const task = cron.schedule(cronExpr, () => {
       executeLogicraftRegistration(mappingId).catch(console.error);
     }, kstCronOptions);
