@@ -8,7 +8,7 @@ export interface AdminUser {
   name: string;
   email: string;
   provider: string;
-  is_active: number;
+  is_active: boolean;
   created_at: string;
   repo_count: number;
 }
@@ -89,8 +89,8 @@ export interface SchedulerRepoRow {
   repo: string;
   branch: string;
   polling_interval_min: number;
-  is_active: number;
-  auto_report_enabled: number;
+  is_active: boolean;
+  auto_report_enabled: boolean;
   sync_status: string;
   user_id: string;
   user_name: string;
@@ -121,7 +121,7 @@ export async function getSchedulerRepos(): Promise<SchedulerRepoRow[]> {
 export interface HrmsMappingRow {
   id: number;
   repo_ids: string;
-  auto_register: number;
+  auto_register: boolean;
   cron_time: string;
   hrms_project_name: string;
   user_id: string;
@@ -139,7 +139,7 @@ export async function getHrmsMappings(): Promise<HrmsMappingRow[]> {
 
 export interface LogicraftMappingRow {
   id: number;
-  auto_register: number;
+  auto_register: boolean;
   cron_time: string;
   logicraft_project_name: string;
   user_id: string;

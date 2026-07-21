@@ -29,8 +29,8 @@ interface SchedulerRepoRow {
   repo: string;
   branch: string;
   polling_interval_min: number;
-  is_active: number;
-  auto_report_enabled: number;
+  is_active: boolean;
+  auto_report_enabled: boolean;
   sync_status: string;
   user_id: string;
   user_name: string;
@@ -42,7 +42,7 @@ interface SchedulerRepoRow {
 interface HrmsMappingRow {
   id: number;
   repo_ids: string;
-  auto_register: number;
+  auto_register: boolean;
   cron_time: string;
   hrms_project_name: string;
   user_id: string;
@@ -50,7 +50,7 @@ interface HrmsMappingRow {
 
 interface LogicraftMappingRow {
   id: number;
-  auto_register: number;
+  auto_register: boolean;
   cron_time: string;
   logicraft_project_name: string;
   user_id: string;
@@ -105,7 +105,7 @@ export function SchedulerTable() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ isActive: repo.is_active === 0 }),
+      body: JSON.stringify({ isActive: !repo.is_active }),
     });
     load();
   }
@@ -115,7 +115,7 @@ export function SchedulerTable() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ enabled: repo.auto_report_enabled === 0 }),
+      body: JSON.stringify({ enabled: !repo.auto_report_enabled }),
     });
     load();
   }
@@ -125,7 +125,7 @@ export function SchedulerTable() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ enabled: mapping.auto_register === 0 }),
+      body: JSON.stringify({ enabled: !mapping.auto_register }),
     });
     load();
   }
@@ -135,7 +135,7 @@ export function SchedulerTable() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ enabled: mapping.auto_register === 0 }),
+      body: JSON.stringify({ enabled: !mapping.auto_register }),
     });
     load();
   }
@@ -269,7 +269,7 @@ export function SchedulerTable() {
                     <TableCell className="text-center">
                       <Switch
                         size="sm"
-                        checked={repo.is_active === 1}
+                        checked={repo.is_active}
                         onCheckedChange={() => toggleSync(repo)}
                       />
                     </TableCell>
@@ -278,10 +278,10 @@ export function SchedulerTable() {
                         <div className="flex flex-col items-center gap-0.5">
                           <Switch
                             size="sm"
-                            checked={hrmsMapping.auto_register === 1}
+                            checked={hrmsMapping.auto_register}
                             onCheckedChange={() => toggleHrms(hrmsMapping)}
                           />
-                          {hrmsMapping.auto_register === 1 && hrmsMapping.cron_time && (
+                          {hrmsMapping.auto_register && hrmsMapping.cron_time && (
                             <span className="text-xs text-muted-foreground">
                               {hrmsMapping.cron_time}
                             </span>
@@ -296,10 +296,10 @@ export function SchedulerTable() {
                         <div className="flex flex-col items-center gap-0.5">
                           <Switch
                             size="sm"
-                            checked={lcMapping.auto_register === 1}
+                            checked={lcMapping.auto_register}
                             onCheckedChange={() => toggleLogicraft(lcMapping)}
                           />
-                          {lcMapping.auto_register === 1 && lcMapping.cron_time && (
+                          {lcMapping.auto_register && lcMapping.cron_time && (
                             <span className="text-xs text-muted-foreground">
                               {lcMapping.cron_time}
                             </span>
@@ -312,7 +312,7 @@ export function SchedulerTable() {
                     <TableCell className="text-center">
                       <Switch
                         size="sm"
-                        checked={repo.auto_report_enabled === 1}
+                        checked={repo.auto_report_enabled}
                         onCheckedChange={() => toggleAutoReport(repo)}
                       />
                     </TableCell>

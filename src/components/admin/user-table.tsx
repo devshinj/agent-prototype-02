@@ -21,7 +21,7 @@ interface AdminUser {
   name: string;
   email: string;
   provider: string;
-  is_active: number;
+  is_active: boolean;
   created_at: string;
   repo_count: number;
 }
@@ -66,7 +66,7 @@ export function UserTable() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ isActive: user.is_active === 0 }),
+      body: JSON.stringify({ isActive: !user.is_active }),
     });
     load();
   }
@@ -121,7 +121,7 @@ export function UserTable() {
               users.map((user) => (
                 <TableRow
                   key={user.id}
-                  className={user.is_active === 0 ? "opacity-50" : undefined}
+                  className={!user.is_active ? "opacity-50" : undefined}
                 >
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell className="text-muted-foreground">{user.email}</TableCell>
@@ -139,7 +139,7 @@ export function UserTable() {
                       : "—"}
                   </TableCell>
                   <TableCell>
-                    {user.is_active === 1 ? (
+                    {user.is_active ? (
                       <Badge variant="default">활성</Badge>
                     ) : (
                       <Badge variant="secondary">비활성</Badge>
@@ -152,7 +152,7 @@ export function UserTable() {
                         variant="outline"
                         onClick={() => toggleActive(user)}
                       >
-                        {user.is_active === 1 ? "비활성화" : "활성화"}
+                        {user.is_active ? "비활성화" : "활성화"}
                       </Button>
                       <Button
                         size="sm"
